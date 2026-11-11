@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@source "../views";
+
+/* Alpine.js başlamadan önce x-cloak öğelerini gizle */
+[x-cloak] {
+  display: none !important;
+}

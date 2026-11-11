@@ -1,0 +1,22 @@
+# Geliştirme: sadece PostgreSQL. Uygulama `task dev` ile yerelde çalışır.
+# Canlı yığın (app + postgres) Faz 8'de docker-compose.prod.yml olarak eklenir.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hesapkitap
+      POSTGRES_USER: hesapkitap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hesapkitap_dev}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hesapkitap -d hesapkitap"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

@@ -1,0 +1,120 @@
+// Package auth implements password hashing, user lookup and server-side sessions.
+package auth
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/mail"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"hesapkitap/internal/platform/db/dbgen"
+)
+
+var (
+	// ErrInvalidCredentials is returned for an unknown e-mail or a wrong password.
+	ErrInvalidCredentials = errors.New("e-posta veya şifre hatalı")
+	// ErrLocked is returned while the account is temporarily locked after repeated failures.
+	ErrLocked = errors.New("çok fazla hatalı deneme, hesap geçici olarak kilitlendi")
+	// ErrEmailTaken is returned when a user with that e-mail already exists.
+	ErrEmailTaken = errors.New("bu e-posta ile kayıtlı bir kullanıcı var")
+)
+
+// User is the authenticated user as seen by the rest of the application.
+type User struct {
+	ID    uuid.UUID
+	Email string
+}
+
+// Service authenticates users against the database.
+type Service struct {
+	q   *dbgen.Queries
+	now func() time.Time
+	// dummyHash is verified when the e-mail is unknown so response time does not reveal which e-mails exist.
+	dummyHash string
+}
+
+// NewService creates a Service.
+func NewService(q *dbgen.Queries) (*Service, error) {
+	dummy, err := HashPassword("zamanlama-eşitleme")
+	if err != nil {
+		return nil, err
+	}
+	return &Service{q: q, now: time.Now, dummyHash: dummy}, nil
+}
+
+// NormalizeEmail trims and lower-cases an e-mail address. strings.ToLower is locale independent,
+// so "I" never becomes a Turkish dotless "ı".
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// Authenticate checks the credentials and applies the lockout policy.
+func (s *Service) Authenticate(ctx context.Context, email, password string) (User, error) {
+	u, err := s.q.GetUserByEmail(ctx, NormalizeEmail(email))
+	if errors.Is(err, pgx.ErrNoRows) {
+		_, _ = VerifyPassword(password, s.dummyHash)
+		return User{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("kullanıcı aranamadı: %w", err)
+	}
+
+	if u.LockedUntil.Valid && u.LockedUntil.Time.After(s.now()) {
+		return User{}, ErrLocked
+	}
+
+	ok, err := VerifyPassword(password, u.PasswordHash)
+	if err != nil {
+		return User{}, fmt.Errorf("şifre doğrulanamadı: %w", err)
+	}
+	if !ok {
+		if err := s.q.RecordFailedLogin(ctx, u.ID); err != nil {
+			return User{}, fmt.Errorf("hatalı giriş kaydedilemedi: %w", err)
+		}
+		return User{}, ErrInvalidCredentials
+	}
+
+	if err := s.q.ResetLoginFailures(ctx, u.ID); err != nil {
+		return User{}, fmt.Errorf("giriş sayacı sıfırlanamadı: %w", err)
+	}
+	return User{ID: u.ID, Email: u.Email}, nil
+}
+
+// UserByID loads a user, e.g. to validate a session.
+func (s *Service) UserByID(ctx context.Context, id uuid.UUID) (User, error) {
+	u, err := s.q.GetUserByID(ctx, id)
+	if err != nil {
+		return User{}, fmt.Errorf("kullanıcı getirilemedi: %w", err)
+	}
+	return User{ID: u.ID, Email: u.Email}, nil
+}
+
+// CreateUser adds a user. There is no sign-up screen; this is used by the create-user command.
+func (s *Service) CreateUser(ctx context.Context, email, password string) (User, error) {
+	email = NormalizeEmail(email)
+	if _, err := mail.ParseAddress(email); err != nil {
+		return User{}, fmt.Errorf("e-posta geçersiz: %w", err)
+	}
+	if len([]rune(password)) < MinPasswordLength {
+		return User{}, fmt.Errorf("şifre en az %d karakter olmalı", MinPasswordLength)
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+	u, err := s.q.CreateUser(ctx, dbgen.CreateUserParams{Email: email, PasswordHash: hash})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return User{}, ErrEmailTaken
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("kullanıcı oluşturulamadı: %w", err)
+	}
+	return User{ID: u.ID, Email: u.Email}, nil
+}

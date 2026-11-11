@@ -1,0 +1,139 @@
+version: "3"
+
+dotenv: [".env"]
+
+vars:
+  EXE: '{{if eq OS "windows"}}.exe{{end}}'
+  GOBIN:
+    sh: go env GOPATH
+  TAILWIND_VERSION: v4.3.5
+  TAILWIND: tools/bin/tailwindcss{{.EXE}}
+  CSS_IN: internal/platform/http/assets/input.css
+  CSS_OUT: internal/platform/http/static/app.css
+  BIN: '{{.GOBIN}}/bin'
+
+tasks:
+  default:
+    desc: Görevleri listele
+    cmds: [task --list]
+    silent: true
+
+  tools:
+    desc: Geliştirme araçlarını sabit sürümlerle kur (templ, sqlc, goose, air, golangci-lint, tailwind)
+    cmds:
+      - go install github.com/a-h/templ/cmd/templ@v0.3.1100
+      - go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+      - go install github.com/pressly/goose/v3/cmd/goose@v3.30.0
+      - go install github.com/air-verse/air@v1.67.4
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+      - task: tools:tailwind
+
+  tools:tailwind:
+    desc: Tailwind standalone CLI'yı indir (Node gerekmez)
+    status:
+      - test -f {{.TAILWIND}}
+    cmds:
+      - cmd: curl -sfL -o {{.TAILWIND}} --create-dirs https://github.com/tailwindlabs/tailwindcss/releases/download/{{.TAILWIND_VERSION}}/tailwindcss-windows-x64.exe
+        platforms: [windows]
+      - cmd: curl -sfL -o {{.TAILWIND}} --create-dirs https://github.com/tailwindlabs/tailwindcss/releases/download/{{.TAILWIND_VERSION}}/tailwindcss-linux-x64 && chmod +x {{.TAILWIND}}
+        platforms: [linux/amd64]
+      - cmd: curl -sfL -o {{.TAILWIND}} --create-dirs https://github.com/tailwindlabs/tailwindcss/releases/download/{{.TAILWIND_VERSION}}/tailwindcss-macos-arm64 && chmod +x {{.TAILWIND}}
+        platforms: [darwin/arm64]
+
+  gen:
+    desc: Üretilen kodu yenile (templ, sqlc, css)
+    cmds:
+      - '{{.BIN}}/templ{{.EXE}} generate'
+      - '{{.BIN}}/sqlc{{.EXE}} generate'
+      - task: css
+
+  css:
+    desc: Tailwind CSS çıktısını üret
+    cmds:
+      - '{{.TAILWIND}} -i {{.CSS_IN}} -o {{.CSS_OUT}} --minify'
+
+  db:up:
+    desc: Geliştirme PostgreSQL'ini başlat (Docker)
+    cmds:
+      - docker compose up -d --wait db
+
+  db:down:
+    desc: Geliştirme PostgreSQL'ini durdur (veri kalır)
+    cmds:
+      - docker compose down
+
+  migrate:
+    desc: Bekleyen migration'ları uygula
+    cmds:
+      - go run ./cmd/hesapkitap migrate
+
+  migrate:new:
+    desc: "Yeni migration dosyası oluştur: task migrate:new -- ad"
+    cmds:
+      - '{{.BIN}}/goose{{.EXE}} -dir internal/platform/db/migrations create {{.CLI_ARGS}} sql'
+
+  user:create:
+    desc: "Kullanıcı ekle: task user:create -- ornek@mail.com"
+    interactive: true
+    cmds:
+      - go run ./cmd/hesapkitap create-user {{.CLI_ARGS}}
+
+  dev:
+    desc: Geliştirme ortamı — Postgres + migration + hot reload (air, templ, tailwind watch)
+    cmds:
+      - task: db:up
+      - task: migrate
+      - task: dev:watch
+
+  dev:watch:
+    internal: true
+    deps: [dev:templ, dev:css, dev:air]
+
+  dev:templ:
+    internal: true
+    cmds:
+      - '{{.BIN}}/templ{{.EXE}} generate --watch'
+
+  dev:css:
+    internal: true
+    cmds:
+      - '{{.TAILWIND}} -i {{.CSS_IN}} -o {{.CSS_OUT}} --watch'
+
+  dev:air:
+    internal: true
+    cmds:
+      - '{{.BIN}}/air{{.EXE}} --build.cmd "go build -o tmp/hesapkitap{{.EXE}} ./cmd/hesapkitap" --build.entrypoint "tmp/hesapkitap{{.EXE}}"'
+
+  test:
+    desc: Testler (dışarıya istek atmaz; Docker yoksa Postgres testleri atlanır)
+    cmds:
+      - go test ./...
+
+  test:stage:
+    desc: Trendyol stage testleri (gerçek stage'e istek atar)
+    cmds:
+      - go test -tags=stage ./...
+
+  lint:
+    desc: golangci-lint
+    cmds:
+      - '{{.BIN}}/golangci-lint{{.EXE}} run ./...'
+
+  fmt:
+    desc: gofmt + templ fmt
+    cmds:
+      - '{{.BIN}}/golangci-lint{{.EXE}} fmt ./...'
+      - '{{.BIN}}/templ{{.EXE}} fmt .'
+
+  build:
+    desc: Tek binary üret (bin/hesapkitap)
+    cmds:
+      - go build -trimpath -o bin/hesapkitap{{.EXE}} ./cmd/hesapkitap
+
+  check:
+    desc: CI'nin yaptığı her şey — gen farkı, lint, test, build
+    cmds:
+      - task: gen
+      - task: lint
+      - task: test
+      - task: build

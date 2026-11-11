@@ -1,0 +1,38 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - errname
+    - errorlint
+    - forbidigo
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^panic$
+          msg: panic kullanma; hatayı %w ile sar ve dön
+    misspell:
+      locale: US
+  exclusions:
+    # "Code generated" başlıklı dosyalar (templ, sqlc) varsayılan olarak hariç tutulur.
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters: [gosec, forbidigo]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
