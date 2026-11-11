@@ -1,30 +1,27 @@
-# .NET
+# Go
 bin/
-obj/
-*.user
-*.suo
-.vs/
-TestResults/
-*.log
-
-# Node
-node_modules/
+tmp/
 dist/
-.vite/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Üretilen dosyalar (Faz 1 planında netleşir)
+node_modules/
 
 # Env / secrets
 .env
 .env.*
 !.env.example
-appsettings.Development.json
-secrets.json
+
+# Log / yerel veri
+*.log
+logs/
+pgdata/
 
 # IDE / OS
 .idea/
 .vscode/
 Thumbs.db
 .DS_Store
-
-# Docker volumes / local data
-*.db
-pgdata/
