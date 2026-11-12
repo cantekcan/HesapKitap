@@ -1,7 +1,6 @@
 package trendyol
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -15,12 +14,6 @@ import (
 // tokenHeader carries the JWT, both in the signin answer and on every later request.
 // ⚠️ DOĞRULA (docs/trendyol-efaturam-api.md, Açık Sorular 1): bireysel entegrasyonda stage'de teyit edilecek.
 const tokenHeader = "x-access-token"
-
-// Default JWT claim names. ⚠️ DOĞRULA (Açık Sorular 2): Config ile değiştirilebilir.
-const (
-	defaultCompanyIDClaim = "companyId"
-	defaultUserIDClaim    = "userId"
-)
 
 // session is the signed-in state: the JWT and the ids read from it.
 type session struct {
@@ -80,16 +73,17 @@ func (c *Client) signIn(ctx context.Context) (session, error) {
 	if token == "" {
 		return session{}, fmt.Errorf("signin: cevapta %q header'ı yok", tokenHeader)
 	}
-	company, user, err := parseClaims(token, c.cfg.CompanyIDClaim, c.cfg.UserIDClaim)
+	company, user, err := parseClaims(token)
 	if err != nil {
 		return session{}, fmt.Errorf("signin: %w", err)
 	}
 	return session{token: token, companyID: company, userID: user}, nil
 }
 
-// parseClaims reads companyId and userId from the JWT payload. The signature is not verified:
-// this is our own token, only the ids are needed. The token is never included in an error.
-func parseClaims(token, companyClaim, userClaim string) (companyID, userID int64, err error) {
+// parseClaims reads the ids from the JWT payload (stage'de doğrulandı): userId = "sub" claim'i,
+// companyId = "privs" nesnesinin anahtarı. Birden fazla şirket varsa belirsizlik olur ve hata verilir.
+// The signature is not verified: this is our own token. The token is never included in an error.
+func parseClaims(token string) (companyID, userID int64, err error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return 0, 0, errors.New("JWT üç parçalı değil")
@@ -98,38 +92,23 @@ func parseClaims(token, companyClaim, userClaim string) (companyID, userID int64
 	if err != nil {
 		return 0, 0, fmt.Errorf("JWT gövdesi çözülemedi: %w", err)
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var claims map[string]any
-	if err := dec.Decode(&claims); err != nil {
+	var claims struct {
+		Sub   json.Number                `json:"sub"`
+		Privs map[string]json.RawMessage `json:"privs"`
+	}
+	if err := json.Unmarshal(raw, &claims); err != nil {
 		return 0, 0, fmt.Errorf("JWT gövdesi okunamadı: %w", err)
 	}
-	if companyID, err = int64Claim(claims, companyClaim); err != nil {
-		return 0, 0, err
+	if userID, err = strconv.ParseInt(claims.Sub.String(), 10, 64); err != nil {
+		return 0, 0, errors.New(`JWT "sub" claim'i (kullanıcı kimliği) yok veya sayı değil`)
 	}
-	if userID, err = int64Claim(claims, userClaim); err != nil {
-		return 0, 0, err
+	if len(claims.Privs) != 1 {
+		return 0, 0, fmt.Errorf(`JWT "privs" claim'inde %d şirket var; tam olarak 1 beklenir`, len(claims.Privs))
+	}
+	for k := range claims.Privs {
+		if companyID, err = strconv.ParseInt(k, 10, 64); err != nil {
+			return 0, 0, errors.New(`JWT "privs" anahtarı (şirket kimliği) sayı değil`)
+		}
 	}
 	return companyID, userID, nil
-}
-
-func int64Claim(claims map[string]any, name string) (int64, error) {
-	v, ok := claims[name]
-	if !ok {
-		return 0, fmt.Errorf("JWT içinde %q claim'i yok (claim adını stage'de doğrulayıp Config'e verin)", name)
-	}
-	var s string
-	switch t := v.(type) {
-	case json.Number:
-		s = t.String()
-	case string:
-		s = t
-	default:
-		return 0, fmt.Errorf("JWT %q claim'i sayı değil", name)
-	}
-	n, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("JWT %q claim'i sayıya çevrilemedi: %w", name, err)
-	}
-	return n, nil
 }

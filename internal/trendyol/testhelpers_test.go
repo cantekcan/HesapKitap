@@ -30,7 +30,7 @@ func fakeJWT(t *testing.T, claims map[string]any) string {
 }
 
 func defaultToken(t *testing.T) string {
-	return fakeJWT(t, map[string]any{"companyId": 42, "userId": 7, "n": "A"})
+	return fakeJWT(t, map[string]any{"sub": "7", "privs": map[string]any{"42": []string{"X"}}, "n": "A"})
 }
 
 // fakeAPI is a fake Trendyol gateway. signinHandler may be nil: then every signin succeeds with a default token.

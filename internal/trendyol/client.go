@@ -27,10 +27,6 @@ type Config struct {
 	Email    string
 	Password string
 
-	// JWT claim names holding the company and user ids. Defaults: "companyId", "userId".
-	CompanyIDClaim string
-	UserIDClaim    string
-
 	Logger *slog.Logger
 }
 
@@ -53,12 +49,6 @@ func New(cfg Config) (*Client, error) {
 	}
 	if cfg.Email == "" || cfg.Password == "" {
 		return nil, errors.New("trendyol: e-posta ve şifre zorunlu")
-	}
-	if cfg.CompanyIDClaim == "" {
-		cfg.CompanyIDClaim = defaultCompanyIDClaim
-	}
-	if cfg.UserIDClaim == "" {
-		cfg.UserIDClaim = defaultUserIDClaim
 	}
 	log := cfg.Logger
 	if log == nil {

@@ -71,8 +71,8 @@ func TestLookupTaxpayerNotFoundMeansNotEInvoiceUser(t *testing.T) {
 
 func TestUnauthorizedTriggersOneReloginAndRetry(t *testing.T) {
 	f := newFakeAPI(t)
-	tokenA := fakeJWT(t, map[string]any{"companyId": 42, "userId": 7, "n": "A"})
-	tokenB := fakeJWT(t, map[string]any{"companyId": 42, "userId": 7, "n": "B"})
+	tokenA := fakeJWT(t, map[string]any{"sub": "7", "privs": map[string]any{"42": []string{"X"}}, "n": "A"})
+	tokenB := fakeJWT(t, map[string]any{"sub": "7", "privs": map[string]any{"42": []string{"X"}}, "n": "B"})
 	f.signin(func(n int32) string {
 		if n == 1 {
 			return tokenA
@@ -179,25 +179,26 @@ func TestSignInWithoutTokenHeaderFails(t *testing.T) {
 
 func TestMissingClaimErrorNamesTheClaimButNotTheToken(t *testing.T) {
 	f := newFakeAPI(t)
-	token := fakeJWT(t, map[string]any{"userId": 7}) // companyId yok
+	token := fakeJWT(t, map[string]any{"sub": "7", "privs": map[string]any{}}) // şirket yok
 	f.signin(func(int32) string { return token })
 
 	_, err := f.client().TaxpayerRecords(t.Context(), "1")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "companyId")
+	assert.Contains(t, err.Error(), "privs")
 	assert.NotContains(t, err.Error(), token)
 }
 
-func TestCustomClaimNamesAndStringClaims(t *testing.T) {
+func TestIDsComeFromSubAndPrivsKey(t *testing.T) {
 	f := newFakeAPI(t)
-	f.signin(func(int32) string { return fakeJWT(t, map[string]any{"company_id": "99", "user_id": 5}) })
+	f.signin(func(int32) string {
+		return fakeJWT(t, map[string]any{"sub": "5", "privs": map[string]any{"99": []string{"A"}}})
+	})
 	f.handle("GET /api/invoice/documents/sent-reply/{companyId}/{uuid}", func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "99", r.PathValue("companyId"), "companyId JWT'den gelir")
+		assert.Equal(t, "99", r.PathValue("companyId"), "companyId privs anahtarından gelir")
 		writeJSON(w, `{"responseType":"APPROVED","note":"tamam","issuedAt":"2026-11-12T10:00:00Z"}`)
 	})
-	c := f.client(func(c *trendyol.Config) { c.CompanyIDClaim, c.UserIDClaim = "company_id", "user_id" })
 
-	reply, err := c.SentReply(t.Context(), "uuid-1")
+	reply, err := f.client().SentReply(t.Context(), "uuid-1")
 	require.NoError(t, err)
 	assert.Equal(t, trendyol.ResponseApproved, reply.ResponseType)
 }
