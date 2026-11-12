@@ -118,7 +118,7 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if token != "" {
-		req.Header.Set(tokenHeader, token)
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	start := time.Now()

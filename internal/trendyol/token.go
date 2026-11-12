@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// tokenHeader carries the JWT, both in the signin answer and on every later request.
-// ⚠️ DOĞRULA (docs/trendyol-efaturam-api.md, Açık Sorular 1): bireysel entegrasyonda stage'de teyit edilecek.
+// tokenHeader is the signin answer header that carries the JWT. Later requests send it as
+// "Authorization: Bearer <JWT>" (stage'de doğrulandı 2026-11-13; x-access-token ile gönderilince 401 döner).
 const tokenHeader = "x-access-token"
 
 // session is the signed-in state: the JWT and the ids read from it.

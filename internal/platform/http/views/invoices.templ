@@ -184,7 +184,7 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 			if f.Errors["issue"] != "" {
 				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{ f.Errors["issue"] }</div>
 			}
-			if len(f.Errors) > 0 {
+			if hasFieldErrors(f) {
 				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
 			}
 			<div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">

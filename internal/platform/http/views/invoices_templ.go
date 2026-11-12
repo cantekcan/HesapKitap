@@ -641,7 +641,7 @@ func InvoiceFormPage(p PageData, f InvoiceForm) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			if len(f.Errors) > 0 {
+			if hasFieldErrors(f) {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<div class=\"rounded-md bg-red-50 px-3 py-2 text-sm text-red-800\">Lütfen işaretli alanları düzeltin.</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

@@ -23,7 +23,7 @@ func TestSignInThenAuthenticatedRequest(t *testing.T) {
 	token := defaultToken(t)
 	f.signin(func(int32) string { return token })
 	f.handle(taxpayersPath, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, token, r.Header.Get("x-access-token"))
+		assert.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
 		assert.Equal(t, "1234567890", r.PathValue("taxId"))
 		assert.Equal(t, "false", r.URL.Query().Get("showDeleted"))
 		writeJSON(w, `[{"taxId":"1234567890","alias":"urn:mail:defaultpk@x.com","title":"ÖRNEK A.Ş.","gibUserType":"x","aliasType":"INVOICE","postBoxType":"PK","aliasCreationTime":"2020-01-01T00:00:00Z","firstCreationTime":"2020-01-01T00:00:00Z","deletedAt":null}]`)
@@ -81,7 +81,7 @@ func TestUnauthorizedTriggersOneReloginAndRetry(t *testing.T) {
 	})
 	var seen []string
 	f.handle(taxpayersPath, func(w http.ResponseWriter, r *http.Request) {
-		tok := r.Header.Get("x-access-token")
+		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		seen = append(seen, tok)
 		if tok == tokenA {
 			problem(w, http.StatusUnauthorized, "Unauthorized", "token expired")
