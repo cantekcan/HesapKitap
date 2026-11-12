@@ -229,3 +229,34 @@ func (s *Service) DocumentURL(ctx context.Context, id uuid.UUID, permanent bool)
 	}
 	return s.Provider.DocumentURL(ctx, d.Kind, d.ETTN, permanent)
 }
+
+// RefreshOne asks the provider about one issued invoice that is not in a final status, so an open invoice page
+// shows "Onaylandı" within seconds instead of waiting for the periodic job.
+func (s *Service) RefreshOne(ctx context.Context, id uuid.UUID) error {
+	if s.Provider == nil {
+		return nil
+	}
+	d, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if d.Status != StatusIssued || (d.ProviderStatus != nil && d.ProviderStatus.IsFinal()) {
+		return nil
+	}
+	info, found, err := s.Provider.Status(ctx, d.Kind, d.ETTN)
+	if err != nil || !found {
+		return err
+	}
+	return s.record(ctx, id, info.Number, info.Status)
+}
+
+// IsPolling reports whether an invoice page should keep refreshing itself.
+func (d Draft) IsPolling() bool {
+	switch d.Status {
+	case StatusSending:
+		return true
+	case StatusIssued:
+		return d.ProviderStatus == nil || !d.ProviderStatus.IsFinal()
+	}
+	return false
+}

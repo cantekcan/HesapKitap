@@ -79,7 +79,7 @@ templ InvoiceStatusBox(v InvoiceView) {
 	<div
 		id="status-box"
 		class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-		if v.Draft.Status == invoice.StatusSending {
+		if v.Draft.IsPolling() {
 			hx-get={ "/invoices/" + v.Draft.ID.String() + "/status" }
 			hx-trigger="every 4s"
 			hx-swap="outerHTML"

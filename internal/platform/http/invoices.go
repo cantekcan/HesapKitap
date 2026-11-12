@@ -368,6 +368,9 @@ func (s *server) invoiceStatus(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	if err := s.Invoices.RefreshOne(r.Context(), id); err != nil {
+		s.Logger.WarnContext(r.Context(), "fatura durumu yenilenemedi", "err", err, "invoice_id", id.String())
+	}
 	d, err := s.Invoices.Get(r.Context(), id)
 	if err != nil {
 		s.notFound(w, r)
