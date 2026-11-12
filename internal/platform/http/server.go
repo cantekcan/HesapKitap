@@ -91,6 +91,11 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "GET /invoices/{id}", authed(s.invoiceShow))
 	route(app, "POST /invoices/{id}", authed(s.invoiceSave))
 	route(app, "POST /invoices/{id}/delete", authed(s.invoiceDelete))
+	route(app, "POST /invoices/{id}/issue", authed(s.invoiceIssue))
+	route(app, "GET /invoices/{id}/status", authed(s.invoiceStatus))
+	route(app, "GET /invoices/{id}/pdf", authed(s.invoicePDF))
+	route(app, "POST /invoices/{id}/share", authed(s.invoiceShare))
+	route(app, "POST /invoices/{id}/cancel", authed(s.invoiceCancel))
 	for _, pg := range []struct{ path, key, title, phase string }{
 		{"/payments", "payments", "Tahsilatlar", "Faz 6"},
 	} {

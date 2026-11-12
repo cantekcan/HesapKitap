@@ -29,6 +29,11 @@ type Config struct {
 	HTTPAddr    string
 	DatabaseURL string
 	Trendyol    Trendyol
+
+	// EInvoiceEnabled: firmanın kendisi e-Fatura mükellefi (e-Fatura kesilebilir). Değilse hep e-Arşiv kesilir.
+	EInvoiceEnabled bool
+	// EInvoiceScenario: TEMELFATURA veya TICARIFATURA.
+	EInvoiceScenario string
 }
 
 // IsProduction reports whether the process runs in production mode.
@@ -53,6 +58,8 @@ func Load(getenv func(string) string) (Config, error) {
 			Email:    get("TRENDYOL_EMAIL", ""),
 			Password: get("TRENDYOL_PASSWORD", ""),
 		},
+		EInvoiceEnabled:  get("EINVOICE_ENABLED", "false") == "true",
+		EInvoiceScenario: get("EINVOICE_SCENARIO", "TEMELFATURA"),
 	}
 
 	var errs []error
@@ -63,6 +70,9 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, errors.New("DATABASE_URL zorunlu"))
 	}
 	errs = append(errs, validateTrendyol(cfg)...)
+	if cfg.EInvoiceScenario != "TEMELFATURA" && cfg.EInvoiceScenario != "TICARIFATURA" {
+		errs = append(errs, fmt.Errorf("EINVOICE_SCENARIO %q geçersiz (TEMELFATURA veya TICARIFATURA olmalı)", cfg.EInvoiceScenario))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, fmt.Errorf("config doğrulanamadı: %w", err)

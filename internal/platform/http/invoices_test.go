@@ -6,8 +6,11 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"hesapkitap/internal/invoice"
 )
 
 var (
@@ -141,4 +144,121 @@ func TestInvoiceDraftFlow(t *testing.T) {
 	r = a.do(http.MethodPost, "/invoices/"+id+"/delete", url.Values{}, nil)
 	assert.Equal(t, http.StatusSeeOther, r.Status)
 	assert.Equal(t, http.StatusNotFound, a.get("/invoices/"+id).Status)
+}
+
+// readyDraft creates a customer and a one-line draft; it returns the invoice id.
+func readyDraft(t *testing.T, a *testApp, taxID string) string {
+	t.Helper()
+	cust := newCustomer(taxID, "Ali Veli")
+	if len(taxID) == 10 {
+		cust.Set("kind", "COMPANY")
+	}
+	custID := idFrom(t, a.do(http.MethodPost, "/customers", cust, nil))
+	return idFrom(t, a.do(http.MethodPost, "/invoices", url.Values{
+		"customer_id": {custID}, "issue_date": {"2026-11-13"}, "notes": {"deneme"},
+		"line_product": {""}, "line_name": {"Danışmanlık"}, "line_unit": {"HUR"}, "line_qty": {"2"},
+		"line_price": {"500,00"}, "line_discount": {""}, "line_tax": {"20"},
+	}, nil))
+}
+
+func TestIssueFlowNeverCreatesADoubleInvoice(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	id := readyDraft(t, a, "10000000146")
+	uid := uuid.MustParse(id)
+
+	// "Faturayı Kes": taslak SENDING olur ve iş outbox'a yazılır. Çift tıklama ikinci iş yazmaz.
+	assert.Equal(t, http.StatusSeeOther, a.do(http.MethodPost, "/invoices/"+id+"/issue", url.Values{}, nil).Status)
+	assert.Equal(t, http.StatusSeeOther, a.do(http.MethodPost, "/invoices/"+id+"/issue", url.Values{}, nil).Status)
+	assert.Equal(t, 1, a.jobs.count(), "çift tıklama ikinci gönderim işi yazmamalı")
+
+	page := a.get("/invoices/" + id)
+	assert.Contains(t, page.Body, "Gönderiliyor")
+	assert.Contains(t, page.Body, "e-Arşiv", "firma e-Fatura mükellefi değil: e-Arşiv kesilir")
+	assert.Contains(t, page.Body, `hx-trigger="every 4s"`)
+
+	// Gönderilen fatura düzenlenemez ve silinemez (ALTIN KURAL 6).
+	upd := a.do(http.MethodPost, "/invoices/"+id, url.Values{"customer_id": {uuid.NewString()}}, nil)
+	assert.NotEqual(t, http.StatusSeeOther, upd.Status)
+	assert.Equal(t, http.StatusNotFound, a.do(http.MethodPost, "/invoices/"+id+"/delete", url.Values{}, nil).Status)
+
+	// Worker: sağlayıcı faturayı OLUŞTURUR ama cevap zaman aşımına uğrar → sonuç belirsiz, iş hata döner.
+	a.provider.failAfterCreate = true
+	require.Error(t, a.invoices.Send(t.Context(), uid))
+	assert.Contains(t, a.get("/invoices/"+id).Body, "Gönderiliyor")
+	assert.Equal(t, 1, a.provider.issues)
+
+	// River işi tekrar çalıştırır: önce durum sorgulanır, sağlayıcıda VAR → yeniden gönderilmez.
+	require.NoError(t, a.invoices.Send(t.Context(), uid))
+	assert.Equal(t, 1, a.provider.issues, "belirsiz zaman aşımından sonra ikinci Issue çağrısı yapılmamalı")
+	assert.Len(t, a.provider.created, 1)
+	page = a.get("/invoices/" + id)
+	assert.Contains(t, page.Body, "Kesildi")
+	assert.NotContains(t, page.Body, `hx-trigger="every 4s"`)
+
+	// İş üçüncü kez çalışsa da (en az bir kez) hiçbir şey olmaz.
+	require.NoError(t, a.invoices.Send(t.Context(), uid))
+	assert.Equal(t, 1, a.provider.issues)
+
+	// Gönderilen istekte alıcı, kalem ve toplamlar doğru; ETTN gönderimden önce yazılmıştı.
+	var req invoice.IssueRequest
+	for _, r := range a.provider.created {
+		req = r
+	}
+	assert.Equal(t, invoice.KindEArchive, req.Kind)
+	assert.Equal(t, "EARSIVFATURA", req.Scenario)
+	assert.Equal(t, "10000000146", req.Recipient.TaxID)
+	assert.EqualValues(t, 120000, req.Totals.Payable)
+	assert.Equal(t, id, req.LocalRef)
+
+	// PDF ve paylaşım bağlantısı
+	pdf := a.get("/invoices/" + id + "/pdf")
+	assert.Equal(t, http.StatusSeeOther, pdf.Status)
+	assert.Contains(t, pdf.Header.Get("Location"), "gecici")
+	share := a.do(http.MethodPost, "/invoices/"+id+"/share", url.Values{}, hxPreview)
+	assert.Contains(t, share.Body, "kalici")
+
+	// e-Arşiv iptal
+	assert.Equal(t, http.StatusSeeOther, a.do(http.MethodPost, "/invoices/"+id+"/cancel", url.Values{}, nil).Status)
+	assert.Len(t, a.provider.cancelled, 1)
+	assert.Contains(t, a.get("/invoices/"+id).Body, "İptal")
+}
+
+func TestIssueSuccessShowsInvoiceNumber(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	id := readyDraft(t, a, "10000000146")
+	a.do(http.MethodPost, "/invoices/"+id+"/issue", url.Values{}, nil)
+
+	require.NoError(t, a.invoices.Send(t.Context(), uuid.MustParse(id)))
+	page := a.get("/invoices/" + id)
+	assert.Contains(t, page.Body, "ABC2026000000001")
+	assert.Contains(t, a.get("/invoices").Body, "Kesildi")
+}
+
+func TestIssueRejectedByProviderReturnsToDraft(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	id := readyDraft(t, a, "10000000146")
+	a.do(http.MethodPost, "/invoices/"+id+"/issue", url.Values{}, nil)
+
+	a.provider.reject = "Alıcı adresi geçersiz"
+	require.NoError(t, a.invoices.Send(t.Context(), uuid.MustParse(id)))
+
+	page := a.get("/invoices/" + id)
+	assert.Contains(t, page.Body, "Alıcı adresi geçersiz")
+	assert.Contains(t, page.Body, "Faturayı Kes", "kesin red: taslağa dönülür, düzeltilip yeniden denenebilir")
+	assert.Contains(t, page.Body, "Taslağı kaydet")
+}
+
+func TestIssueWithoutProviderIsRefused(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	id := readyDraft(t, a, "10000000146")
+	a.invoices.Provider = nil
+
+	r := a.do(http.MethodPost, "/invoices/"+id+"/issue", url.Values{}, nil)
+	assert.Equal(t, http.StatusOK, r.Status)
+	assert.Contains(t, r.Body, "ayarlı değil")
+	assert.Equal(t, 0, a.jobs.count())
 }

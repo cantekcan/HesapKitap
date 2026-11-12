@@ -25,6 +25,7 @@ func New(pool *pgxpool.Pool, workers *river.Workers, log *slog.Logger) (*Client,
 	cfg := &river.Config{Logger: log}
 	if workers != nil {
 		cfg.Workers = workers
+		cfg.PeriodicJobs = PeriodicJobs()
 		cfg.Queues = map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}}
 	}
 	c, err := river.NewClient(riverpgxv5.New(pool), cfg)

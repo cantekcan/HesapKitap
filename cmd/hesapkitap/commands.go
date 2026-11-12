@@ -39,12 +39,6 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
-	// Arka plan işleri (River). Faz 5'te fatura gönderme ve durum sorgulama worker'ları eklenince
-	// queue.New'e workers verilir ve jobs.Start/Stop burada çağrılır. Şimdilik insert-only istemci.
-	if _, err := queue.New(pool, nil, log); err != nil {
-		return err
-	}
-
 	// Trendyol bağlantısı ayarlıysa mükellef sorgusu açılır; değilse düğme pasif görünür.
 	var provider invoice.EInvoiceProvider
 	if t := cfg.Trendyol; t.BaseURL != "" && t.Email != "" && t.Password != "" {
@@ -55,10 +49,42 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		provider = tc
 	}
 
+	// Arka plan işleri (River). Gönderim işi faturayla AYNI transaction'da insert-only istemciyle kuyruğa yazılır;
+	// işleyen istemci yalnızca Trendyol ayarlıysa başlar.
+	inserter, err := queue.New(pool, nil, log)
+	if err != nil {
+		return err
+	}
+	invoiceStore := db.NewInvoiceStore(pool, queue.Enqueuer{Client: inserter})
+	invoices := &invoice.Service{
+		Store: invoiceStore, Issues: invoiceStore, Provider: provider,
+		Settings: invoice.Settings{EInvoiceEnabled: cfg.EInvoiceEnabled, EInvoiceScenario: cfg.EInvoiceScenario},
+	}
+	customers := &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider}
+	invoices.Recipients = customers
+	if provider != nil {
+		workers, err := queue.NewWorkers(invoices)
+		if err != nil {
+			return err
+		}
+		jobs, err := queue.New(pool, workers, log)
+		if err != nil {
+			return err
+		}
+		if err := jobs.Start(ctx); err != nil {
+			return fmt.Errorf("arka plan işleri başlatılamadı: %w", err)
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+			defer cancel()
+			_ = jobs.Stop(stopCtx)
+		}()
+	}
+
 	handler, err := httpserver.New(httpserver.Deps{
-		Customers: &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider},
+		Customers: customers,
 		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
-		Invoices:  &invoice.Service{Store: db.NewInvoiceStore(pool)},
+		Invoices:  invoices,
 		Logger:    log,
 		Pool:      pool,
 		Sessions:  auth.NewSessionManager(pool, cfg.IsProduction()),

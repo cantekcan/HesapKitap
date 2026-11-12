@@ -36,9 +36,12 @@ type result struct {
 }
 
 type testApp struct {
-	t      *testing.T
-	srv    *httptest.Server
-	client *http.Client
+	t        *testing.T
+	srv      *httptest.Server
+	client   *http.Client
+	provider *fakeProvider
+	jobs     *fakeEnqueuer
+	invoices *invoice.Service
 }
 
 func newTestApp(t *testing.T) *testApp {
@@ -49,14 +52,18 @@ func newTestApp(t *testing.T) *testApp {
 	_, err = svc.CreateUser(t.Context(), testEmail, testPassword)
 	require.NoError(t, err)
 
+	provider, jobs := newFakeProvider(), &fakeEnqueuer{}
+	customers := &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider}
+	invoiceStore := db.NewInvoiceStore(pool, jobs)
+	invoices := &invoice.Service{Store: invoiceStore, Issues: invoiceStore, Provider: provider, Recipients: customers}
 	h, err := httpserver.New(httpserver.Deps{
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Pool:      pool,
 		Sessions:  auth.NewSessionManager(pool, false),
 		Auth:      svc,
-		Customers: &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: stubProvider{}},
+		Customers: customers,
 		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
-		Invoices:  &invoice.Service{Store: db.NewInvoiceStore(pool)},
+		Invoices:  invoices,
 	})
 	require.NoError(t, err)
 
@@ -66,8 +73,7 @@ func newTestApp(t *testing.T) *testApp {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	return &testApp{
-		t:   t,
-		srv: srv,
+		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices,
 		client: &http.Client{
 			Jar:           jar,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },

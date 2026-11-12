@@ -150,3 +150,30 @@ func (s *Service) Preview(ctx context.Context, taxID string) ([]invoice.Taxpayer
 	}
 	return aliases, nil
 }
+
+// taxpayerMaxAge is how old a stored e-Fatura lookup may be before it is refreshed at issue time.
+const taxpayerMaxAge = 7 * 24 * time.Hour
+
+// ResolveRecipient implements invoice.RecipientSource: the customer data to freeze on the invoice and the
+// customer's e-Fatura registration, refreshed when the stored lookup is missing or older than 7 days.
+func (s *Service) ResolveRecipient(ctx context.Context, id uuid.UUID) (invoice.Recipient, invoice.Taxpayer, error) {
+	c, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return invoice.Recipient{}, invoice.Taxpayer{}, err
+	}
+	tp := invoice.Taxpayer{IsEInvoiceUser: c.IsEInvoiceUser, Alias: c.EInvoiceAlias}
+	if s.Provider != nil && (c.TaxpayerCheckedAt == nil || s.now().Sub(*c.TaxpayerCheckedAt) > taxpayerMaxAge) {
+		res, err := s.LookupTaxpayer(ctx, id)
+		if err != nil {
+			return invoice.Recipient{}, invoice.Taxpayer{}, err
+		}
+		tp = invoice.Taxpayer{IsEInvoiceUser: res.IsEInvoiceUser}
+		if !res.NeedsChoice && len(res.Aliases) == 1 {
+			tp.Alias = res.Aliases[0].Alias
+		}
+	}
+	return invoice.Recipient{
+		Person: c.Kind == KindPerson, TaxID: c.TaxID, Name: c.Name, TaxOffice: c.TaxOffice, Address: c.Address,
+		District: c.District, City: c.City, PostalCode: c.PostalCode, Email: c.Email, Phone: c.Phone,
+	}, tp, nil
+}

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	_ "time/tzdata" // distroless imajda saat dilimi veritabanı yok; Europe/Istanbul için gömülür
 
 	"github.com/joho/godotenv"
 

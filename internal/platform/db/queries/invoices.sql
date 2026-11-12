@@ -37,3 +37,26 @@ where (@q::text = '' or c.name ilike '%' || @q || '%')
   and (@status::text = '' or i.status = @status)
 order by i.issue_date desc, i.created_at desc
 limit @lim offset @off;
+
+-- name: BeginInvoiceSend :execrows
+-- Taslağı gönderim aşamasına alır. Yalnızca DRAFT satır etkilenir; çift tıklama ikinci kez kuyruğa yazmaz.
+update invoices set
+    status = 'SENDING', kind = $2, scenario = $3, ettn = $4, target_alias = $5, recipient = $6,
+    last_error = '', updated_at = now()
+where id = $1 and status = 'DRAFT';
+
+-- name: RecordInvoiceResult :exec
+update invoices set
+    status = $2, provider_status = $3, invoice_number = $4, last_error = $5,
+    sent_at = coalesce(sent_at, case when $2 in ('ISSUED') then now() end), updated_at = now()
+where id = $1;
+
+-- name: RevertInvoiceToDraft :exec
+-- Sağlayıcı faturayı kesin olarak reddetti (oluşmadı): kullanıcı düzeltip yeniden deneyebilsin.
+update invoices set status = 'DRAFT', kind = null, scenario = '', ettn = null, target_alias = '', recipient = null,
+    last_error = $2, updated_at = now()
+where id = $1 and status = 'SENDING';
+
+-- name: ListPendingInvoices :many
+select id from invoices where status = 'ISSUED' and (provider_status is null or provider_status not in (205, 305, 405, 105, 29))
+order by updated_at limit $1;

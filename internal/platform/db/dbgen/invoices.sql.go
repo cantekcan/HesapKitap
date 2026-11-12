@@ -12,6 +12,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const beginInvoiceSend = `-- name: BeginInvoiceSend :execrows
+update invoices set
+    status = 'SENDING', kind = $2, scenario = $3, ettn = $4, target_alias = $5, recipient = $6,
+    last_error = '', updated_at = now()
+where id = $1 and status = 'DRAFT'
+`
+
+type BeginInvoiceSendParams struct {
+	ID          uuid.UUID
+	Kind        pgtype.Text
+	Scenario    string
+	Ettn        uuid.NullUUID
+	TargetAlias string
+	Recipient   []byte
+}
+
+// Taslağı gönderim aşamasına alır. Yalnızca DRAFT satır etkilenir; çift tıklama ikinci kez kuyruğa yazmaz.
+func (q *Queries) BeginInvoiceSend(ctx context.Context, arg BeginInvoiceSendParams) (int64, error) {
+	result, err := q.db.Exec(ctx, beginInvoiceSend,
+		arg.ID,
+		arg.Kind,
+		arg.Scenario,
+		arg.Ettn,
+		arg.TargetAlias,
+		arg.Recipient,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countInvoices = `-- name: CountInvoices :one
 select count(*) from invoices i join customers c on c.id = i.customer_id
 where ($1::text = '' or c.name ilike '%' || $1 || '%')
@@ -79,22 +111,31 @@ func (q *Queries) DeleteInvoiceLines(ctx context.Context, invoiceID uuid.UUID) e
 }
 
 const getInvoice = `-- name: GetInvoice :one
-select i.id, i.status, i.customer_id, i.issue_date, i.due_date, i.notes, i.payable, i.created_at, i.updated_at, c.name as customer_name
+select i.id, i.status, i.customer_id, i.issue_date, i.due_date, i.notes, i.payable, i.created_at, i.updated_at, i.kind, i.scenario, i.ettn, i.provider_status, i.invoice_number, i.target_alias, i.recipient, i.last_error, i.sent_at, c.name as customer_name
 from invoices i join customers c on c.id = i.customer_id
 where i.id = $1
 `
 
 type GetInvoiceRow struct {
-	ID           uuid.UUID
-	Status       string
-	CustomerID   uuid.UUID
-	IssueDate    pgtype.Date
-	DueDate      pgtype.Date
-	Notes        string
-	Payable      int64
-	CreatedAt    pgtype.Timestamptz
-	UpdatedAt    pgtype.Timestamptz
-	CustomerName string
+	ID             uuid.UUID
+	Status         string
+	CustomerID     uuid.UUID
+	IssueDate      pgtype.Date
+	DueDate        pgtype.Date
+	Notes          string
+	Payable        int64
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Kind           pgtype.Text
+	Scenario       string
+	Ettn           uuid.NullUUID
+	ProviderStatus pgtype.Int4
+	InvoiceNumber  string
+	TargetAlias    string
+	Recipient      []byte
+	LastError      string
+	SentAt         pgtype.Timestamptz
+	CustomerName   string
 }
 
 func (q *Queries) GetInvoice(ctx context.Context, id uuid.UUID) (GetInvoiceRow, error) {
@@ -110,6 +151,15 @@ func (q *Queries) GetInvoice(ctx context.Context, id uuid.UUID) (GetInvoiceRow, 
 		&i.Payable,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.Scenario,
+		&i.Ettn,
+		&i.ProviderStatus,
+		&i.InvoiceNumber,
+		&i.TargetAlias,
+		&i.Recipient,
+		&i.LastError,
+		&i.SentAt,
 		&i.CustomerName,
 	)
 	return i, err
@@ -239,6 +289,74 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const listPendingInvoices = `-- name: ListPendingInvoices :many
+select id from invoices where status = 'ISSUED' and (provider_status is null or provider_status not in (205, 305, 405, 105, 29))
+order by updated_at limit $1
+`
+
+func (q *Queries) ListPendingInvoices(ctx context.Context, limit int32) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPendingInvoices, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recordInvoiceResult = `-- name: RecordInvoiceResult :exec
+update invoices set
+    status = $2, provider_status = $3, invoice_number = $4, last_error = $5,
+    sent_at = coalesce(sent_at, case when $2 in ('ISSUED') then now() end), updated_at = now()
+where id = $1
+`
+
+type RecordInvoiceResultParams struct {
+	ID             uuid.UUID
+	Status         string
+	ProviderStatus pgtype.Int4
+	InvoiceNumber  string
+	LastError      string
+}
+
+func (q *Queries) RecordInvoiceResult(ctx context.Context, arg RecordInvoiceResultParams) error {
+	_, err := q.db.Exec(ctx, recordInvoiceResult,
+		arg.ID,
+		arg.Status,
+		arg.ProviderStatus,
+		arg.InvoiceNumber,
+		arg.LastError,
+	)
+	return err
+}
+
+const revertInvoiceToDraft = `-- name: RevertInvoiceToDraft :exec
+update invoices set status = 'DRAFT', kind = null, scenario = '', ettn = null, target_alias = '', recipient = null,
+    last_error = $2, updated_at = now()
+where id = $1 and status = 'SENDING'
+`
+
+type RevertInvoiceToDraftParams struct {
+	ID        uuid.UUID
+	LastError string
+}
+
+// Sağlayıcı faturayı kesin olarak reddetti (oluşmadı): kullanıcı düzeltip yeniden deneyebilsin.
+func (q *Queries) RevertInvoiceToDraft(ctx context.Context, arg RevertInvoiceToDraftParams) error {
+	_, err := q.db.Exec(ctx, revertInvoiceToDraft, arg.ID, arg.LastError)
+	return err
 }
 
 const updateDraftInvoice = `-- name: UpdateDraftInvoice :execrows

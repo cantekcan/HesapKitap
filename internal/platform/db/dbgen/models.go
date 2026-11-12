@@ -32,15 +32,24 @@ type Customer struct {
 }
 
 type Invoice struct {
-	ID         uuid.UUID
-	Status     string
-	CustomerID uuid.UUID
-	IssueDate  pgtype.Date
-	DueDate    pgtype.Date
-	Notes      string
-	Payable    int64
-	CreatedAt  pgtype.Timestamptz
-	UpdatedAt  pgtype.Timestamptz
+	ID             uuid.UUID
+	Status         string
+	CustomerID     uuid.UUID
+	IssueDate      pgtype.Date
+	DueDate        pgtype.Date
+	Notes          string
+	Payable        int64
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Kind           pgtype.Text
+	Scenario       string
+	Ettn           uuid.NullUUID
+	ProviderStatus pgtype.Int4
+	InvoiceNumber  string
+	TargetAlias    string
+	Recipient      []byte
+	LastError      string
+	SentAt         pgtype.Timestamptz
 }
 
 type InvoiceLine struct {

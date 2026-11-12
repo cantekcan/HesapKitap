@@ -1,7 +1,6 @@
 package httpserver_test
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -9,26 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"hesapkitap/internal/invoice"
 )
-
-// stubProvider answers taxpayer lookups without any network: ...146 e-Fatura (1 etiket),
-// 1234567890 e-Fatura (2 etiket), diğerleri e-Arşiv.
-type stubProvider struct{}
-
-func (stubProvider) LookupTaxpayer(_ context.Context, taxID string) ([]invoice.TaxpayerAlias, error) {
-	switch taxID {
-	case "10000000146":
-		return []invoice.TaxpayerAlias{{TaxID: taxID, Alias: "urn:mail:tek@ornek.com", Title: "Tek Etiket"}}, nil
-	case "1234567890":
-		return []invoice.TaxpayerAlias{
-			{TaxID: taxID, Alias: "urn:mail:a@ornek.com", Title: "A"},
-			{TaxID: taxID, Alias: "urn:mail:b@ornek.com", Title: "B"},
-		}, nil
-	}
-	return nil, nil
-}
 
 func newCustomer(taxID, name string) url.Values {
 	return url.Values{

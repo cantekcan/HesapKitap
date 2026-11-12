@@ -14,6 +14,7 @@ import (
 	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/money"
 	"hesapkitap/internal/platform/http/views"
+	"hesapkitap/internal/trendyol"
 )
 
 const dateLayout = "2006-01-02"
@@ -77,9 +78,37 @@ func (s *server) invoiceShow(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "fatura okunamadı", err)
 		return
 	}
+	if d.Status != invoice.StatusDraft {
+		s.invoiceView(w, r, d, "", flashFor(r), false)
+		return
+	}
+	s.renderDraft(w, r, d, d.LastError)
+}
+
+func flashFor(r *http.Request) string {
+	if r.URL.Query().Get("saved") == "1" {
+		return "Kaydedildi."
+	}
+	return ""
+}
+
+// invoiceShowWithIssueError shows the draft again with the reason the invoice could not be issued.
+func (s *server) invoiceShowWithIssueError(w http.ResponseWriter, r *http.Request, id uuid.UUID, msg string) {
+	d, err := s.Invoices.Get(r.Context(), id)
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	s.renderDraft(w, r, d, msg)
+}
+
+func (s *server) renderDraft(w http.ResponseWriter, r *http.Request, d invoice.Draft, issueErr string) {
 	f := views.InvoiceForm{
 		ID: d.ID.String(), CustomerID: d.CustomerID.String(), IssueDate: d.IssueDate.Format(dateLayout),
 		Notes: d.Notes, Saved: r.URL.Query().Get("saved") == "1",
+	}
+	if issueErr != "" {
+		f.Errors = invoice.FieldErrors{"issue": issueErr}
 	}
 	if d.DueDate != nil {
 		f.DueDate = d.DueDate.Format(dateLayout)
@@ -278,4 +307,120 @@ func (s *server) invoiceDelete(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Redirect(w, r, "/invoices", http.StatusSeeOther)
 	}
+}
+
+// issueMessage turns an issue-flow error into a Turkish sentence for the screen.
+func issueMessage(err error) string {
+	var apiErr *trendyol.APIError
+	switch {
+	case errors.Is(err, invoice.ErrNoProvider), errors.Is(err, invoice.ErrAliasNotChosen), errors.Is(err, invoice.ErrNotEArchive),
+		errors.Is(err, invoice.ErrCannotCancel), errors.Is(err, invoice.ErrNotIssued), errors.Is(err, invoice.ErrNotEditable):
+		return err.Error() + "."
+	case errors.Is(err, trendyol.ErrIPNotWhitelisted), errors.Is(err, trendyol.ErrInvalidCredentials),
+		errors.Is(err, trendyol.ErrUnauthorized), errors.As(err, &apiErr):
+		return trendyol.UserMessage(err)
+	}
+	return "İşlem şu anda yapılamadı. Lütfen tekrar deneyin."
+}
+
+// invoiceView renders the read-only page (or just the status box for HTMX polling).
+func (s *server) invoiceView(w http.ResponseWriter, r *http.Request, d invoice.Draft, message, flash string, boxOnly bool) {
+	t, err := d.Totals()
+	if err != nil {
+		s.serverError(w, r, "fatura toplamı hesaplanamadı", err)
+		return
+	}
+	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash}
+	if boxOnly {
+		render(w, r, http.StatusOK, views.InvoiceStatusBox(v))
+		return
+	}
+	render(w, r, http.StatusOK, views.InvoiceViewPage(s.pageData(r, "invoices", "Fatura"), v))
+}
+
+func (s *server) invoiceIssue(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	if err := s.Invoices.Issue(r.Context(), id); err != nil {
+		if !errors.Is(err, invoice.ErrNotEditable) && !errors.Is(err, invoice.ErrNoProvider) && !errors.Is(err, invoice.ErrAliasNotChosen) {
+			s.Logger.WarnContext(r.Context(), "fatura kesilemedi", "err", err, "invoice_id", id.String())
+		}
+		msg := issueMessage(err)
+		if errors.Is(err, invoice.ErrNotEditable) {
+			http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
+			return
+		}
+		if msg == "İşlem şu anda yapılamadı. Lütfen tekrar deneyin." {
+			msg = err.Error() // doğrulama metinleri (kalem hatası vb.) zaten Türkçe
+		}
+		s.invoiceShowWithIssueError(w, r, id, msg)
+		return
+	}
+	http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
+}
+
+func (s *server) invoiceStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	d, err := s.Invoices.Get(r.Context(), id)
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	s.invoiceView(w, r, d, "", "", true)
+}
+
+func (s *server) invoicePDF(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	link, err := s.Invoices.DocumentURL(r.Context(), id, false)
+	if err != nil {
+		s.Logger.WarnContext(r.Context(), "pdf bağlantısı alınamadı", "err", err)
+		http.Error(w, issueMessage(err), http.StatusBadGateway)
+		return
+	}
+	http.Redirect(w, r, link, http.StatusSeeOther) //nolint:gosec // bağlantı Trendyol'dan geldi (kullanıcı girdisi değil)
+}
+
+func (s *server) invoiceShare(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	link, err := s.Invoices.DocumentURL(r.Context(), id, true)
+	if err != nil {
+		s.Logger.WarnContext(r.Context(), "paylaşım bağlantısı alınamadı", "err", err)
+		render(w, r, http.StatusOK, views.ShareLink("", issueMessage(err)))
+		return
+	}
+	render(w, r, http.StatusOK, views.ShareLink(link, ""))
+}
+
+func (s *server) invoiceCancel(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	if err := s.Invoices.Cancel(r.Context(), id); err != nil {
+		s.Logger.WarnContext(r.Context(), "fatura iptal edilemedi", "err", err, "invoice_id", id.String())
+		d, gerr := s.Invoices.Get(r.Context(), id)
+		if gerr != nil {
+			s.notFound(w, r)
+			return
+		}
+		s.invoiceView(w, r, d, issueMessage(err), "", false)
+		return
+	}
+	http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
 }

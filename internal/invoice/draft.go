@@ -16,11 +16,26 @@ import (
 // Status is the local invoice state. Provider statuses (ProviderStatus) are tracked separately (Faz 5).
 type Status string
 
-const StatusDraft Status = "DRAFT"
+const (
+	StatusDraft    Status = "DRAFT"
+	StatusSending  Status = "SENDING"   // gönderim kuyrukta veya sonucu belirsiz
+	StatusIssued   Status = "ISSUED"    // sağlayıcı faturayı aldı (ayrıntı: ProviderStatus)
+	StatusErrored  Status = "FAILED"    // sağlayıcıda hatalı/reddedildi
+	StatusAnnulled Status = "CANCELLED" // iptal edildi
+)
 
 func (s Status) Label() string {
-	if s == StatusDraft {
+	switch s {
+	case StatusDraft:
 		return "Taslak"
+	case StatusSending:
+		return "Gönderiliyor"
+	case StatusIssued:
+		return "Kesildi"
+	case StatusErrored:
+		return "Hatalı"
+	case StatusAnnulled:
+		return "İptal"
 	}
 	return string(s)
 }
@@ -53,6 +68,16 @@ type Draft struct {
 	Notes        string
 	Lines        []Line
 	Payable      int64 // kuruş; kayıtta yeniden hesaplanır
+
+	// Gönderim bilgileri (taslakta boş). ETTN gönderimden önce üretilip yazılır.
+	Kind           Kind
+	Scenario       string
+	ETTN           uuid.UUID
+	ProviderStatus *ProviderStatus
+	Number         string
+	TargetAlias    string
+	Recipient      *Recipient
+	LastError      string
 }
 
 // Summary is a row of the invoice list.
@@ -97,7 +122,7 @@ func (d Draft) Validate() FieldErrors {
 			errs[key] = fmt.Sprintf("%d. kalem: birim geçersiz.", i+1)
 		case !product.ValidTaxPercent(l.TaxPercent):
 			errs[key] = fmt.Sprintf("%d. kalem: KDV oranı geçersiz.", i+1)
-		case l.Quantity.Exponent() < -3:
+		case !l.Quantity.Mul(decimal.NewFromInt(1000)).IsInteger():
 			errs[key] = fmt.Sprintf("%d. kalem: miktar en fazla 3 ondalık içerebilir.", i+1)
 		default:
 			if _, err := (InvoiceCalculator{}).Line(l.Input()); err != nil {
@@ -140,8 +165,14 @@ type Store interface {
 	Delete(ctx context.Context, id uuid.UUID) error // ErrNotEditable
 }
 
-// Service holds the invoice use cases.
-type Service struct{ Store Store }
+// Service holds the invoice use cases. Provider, Recipients and Issues are only needed for issuing (Faz 5).
+type Service struct {
+	Store      Store
+	Provider   EInvoiceProvider
+	Recipients RecipientSource
+	Issues     IssueStore
+	Settings   Settings
+}
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Draft, error) { return s.Store.Get(ctx, id) }
 func (s *Service) List(ctx context.Context, f ListFilter) ([]Summary, int, error) {
