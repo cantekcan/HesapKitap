@@ -119,3 +119,19 @@ func TestCustomerNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, a.get("/customers/00000000-0000-0000-0000-000000000000").Status)
 	assert.Equal(t, http.StatusNotFound, a.get("/customers/degil").Status)
 }
+
+func TestCustomerLookupFillsTitle(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	hx := map[string]string{"HX-Request": "true"}
+
+	r := a.do(http.MethodPost, "/customers/lookup", url.Values{"tax_id": {"10000000146"}}, hx)
+	assert.Contains(t, r.Body, "Tek Etiket")
+	assert.Contains(t, r.Body, "PERSON")
+
+	r = a.do(http.MethodPost, "/customers/lookup", url.Values{"tax_id": {"1234567890"}}, hx)
+	assert.Contains(t, r.Body, "COMPANY")
+
+	r = a.do(http.MethodPost, "/customers/lookup", url.Values{"tax_id": {"123"}}, hx)
+	assert.Contains(t, r.Body, "geçerli bir VKN")
+}

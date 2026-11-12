@@ -15,6 +15,7 @@ var (
 	ErrNotFound       = errors.New("müşteri bulunamadı")
 	ErrDuplicateTaxID = errors.New("bu VKN/TCKN ile kayıtlı başka bir müşteri var")
 	ErrNoProvider     = errors.New("e-Fatura sağlayıcısı ayarlı değil")
+	ErrInvalidTaxID   = errors.New("geçerli bir VKN (10 hane) veya TCKN (11 hane) girin")
 )
 
 // ListFilter selects a page of customers. Status is "", "active" or "passive".
@@ -132,4 +133,20 @@ func (s *Service) SelectAlias(ctx context.Context, id uuid.UUID, alias string) e
 		return errors.New("etiket seçilmedi")
 	}
 	return s.Store.SaveTaxpayer(ctx, id, true, alias, s.now())
+}
+
+// Preview looks up a VKN/TCKN at the provider without a saved customer (new-customer form).
+// Only e-Fatura taxpayers are known to the provider; for others the result is empty.
+func (s *Service) Preview(ctx context.Context, taxID string) ([]invoice.TaxpayerAlias, error) {
+	if s.Provider == nil {
+		return nil, ErrNoProvider
+	}
+	if !ValidTaxID(taxID) {
+		return nil, ErrInvalidTaxID
+	}
+	aliases, err := s.Provider.LookupTaxpayer(ctx, taxID)
+	if err != nil {
+		return nil, fmt.Errorf("mükellef sorgusu: %w", err)
+	}
+	return aliases, nil
 }

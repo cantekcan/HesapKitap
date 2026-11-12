@@ -170,7 +170,13 @@ templ CustomerFormPage(p PageData, f CustomerForm) {
 					}
 				</div>
 				<div class="grid gap-4 sm:grid-cols-2">
-					@formField("VKN / TCKN", "tax_id", f.Customer.TaxID, f.Errors["tax_id"], "")
+					<div>
+						@formField("VKN / TCKN", "tax_id", f.Customer.TaxID, f.Errors["tax_id"], "")
+						if f.IsNew {
+							<button type="button" hx-post="/customers/lookup" hx-include="#tax_id" hx-target="#lookup-result" hx-swap="outerHTML" class="mt-2 text-sm text-slate-700 underline">Ünvanı Trendyol'dan getir</button>
+							<div id="lookup-result"></div>
+						}
+					</div>
 					@formField("Ad Soyad / Ünvan", "name", f.Customer.Name, f.Errors["name"], "Şahıs ise: Ad Soyad")
 					@formField("Vergi dairesi", "tax_office", f.Customer.TaxOffice, f.Errors["tax_office"], "")
 					@formField("İl", "city", f.Customer.City, f.Errors["city"], "Fatura için zorunlu")
@@ -249,3 +255,17 @@ templ TaxpayerPanel(c customer.Customer, res *customer.TaxpayerResult, msg strin
 	</div>
 }
 
+
+// CustomerLookup is the result box of "Ünvanı getir" on the customer form.
+templ CustomerLookup(msg, title, kind string) {
+	<div id="lookup-result" class="mt-2 text-sm">
+		if title != "" {
+			<div x-data={ "{ t: " + jsonString(title) + ", k: " + jsonString(kind) + " }" } class="rounded-md bg-green-50 px-3 py-2 text-green-800">
+				e-Fatura mükellefi: <strong>{ title }</strong>
+				<button type="button" class="ml-2 underline" @click="document.getElementById('name').value = t; document.querySelector('input[name=kind][value=' + k + ']').checked = true">Forma yaz</button>
+			</div>
+		} else {
+			<div class="rounded-md bg-slate-100 px-3 py-2 text-slate-700">{ msg }</div>
+		}
+	</div>
+}

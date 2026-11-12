@@ -219,3 +219,33 @@ func parseForm(w http.ResponseWriter, r *http.Request) bool {
 	}
 	return true
 }
+
+// customerLookup fills the new-customer form from the provider: only e-Fatura taxpayers are known, and
+// only their title is returned (no address, no tax office).
+func (s *server) customerLookup(w http.ResponseWriter, r *http.Request) {
+	if !parseForm(w, r) {
+		return
+	}
+	taxID := strings.TrimSpace(r.PostForm.Get("tax_id"))
+	aliases, err := s.Customers.Preview(r.Context(), taxID)
+	switch {
+	case errors.Is(err, customer.ErrNoProvider):
+		render(w, r, http.StatusOK, views.CustomerLookup("Trendyol bağlantısı ayarlı değil.", "", ""))
+		return
+	case errors.Is(err, customer.ErrInvalidTaxID):
+		render(w, r, http.StatusOK, views.CustomerLookup(err.Error()+".", "", ""))
+		return
+	case err != nil:
+		s.Logger.ErrorContext(r.Context(), "mükellef önizleme başarısız", "err", err)
+		render(w, r, http.StatusOK, views.CustomerLookup(trendyol.UserMessage(err), "", ""))
+		return
+	case len(aliases) == 0:
+		render(w, r, http.StatusOK, views.CustomerLookup("Bu numara e-Fatura mükellefi değil; ünvan Trendyol'dan gelmez. Bilgileri elle girin (e-Arşiv kesilir).", "", ""))
+		return
+	}
+	kind := customer.KindCompany
+	if len(taxID) == 11 {
+		kind = customer.KindPerson
+	}
+	render(w, r, http.StatusOK, views.CustomerLookup("", aliases[0].Title, string(kind)))
+}

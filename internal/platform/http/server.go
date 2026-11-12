@@ -73,6 +73,7 @@ func New(d Deps) (http.Handler, error) {
 	authed := func(h http.HandlerFunc) http.Handler { return s.requireAuth(h) }
 	route(app, "GET /customers", authed(s.customerList))
 	route(app, "GET /customers/new", authed(s.customerNew))
+	route(app, "POST /customers/lookup", authed(s.customerLookup))
 	route(app, "POST /customers", authed(s.customerCreate))
 	route(app, "GET /customers/{id}", authed(s.customerShow))
 	route(app, "POST /customers/{id}", authed(s.customerUpdate))
