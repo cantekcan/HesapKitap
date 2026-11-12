@@ -2,6 +2,8 @@ version: "2"
 
 run:
   timeout: 5m
+  # stage testleri de lint'ten geçsin (çalıştırılmaz, sadece derlenir/incelenir)
+  build-tags: [stage]
 
 linters:
   default: standard
@@ -23,8 +25,6 @@ linters:
       forbid:
         - pattern: ^panic$
           msg: panic kullanma; hatayı %w ile sar ve dön
-    misspell:
-      locale: US
   exclusions:
     # "Code generated" başlıklı dosyalar (templ, sqlc) varsayılan olarak hariç tutulur.
     generated: lax
