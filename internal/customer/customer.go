@@ -89,6 +89,9 @@ func (c Customer) Validate() FieldErrors {
 	if utf8.RuneCountInString(c.City) < 2 {
 		errs["city"] = "İl en az 2 karakter olmalı (fatura için zorunlu)."
 	}
+	if utf8.RuneCountInString(c.District) < 2 {
+		errs["district"] = "İlçe en az 2 karakter olmalı (fatura için zorunlu)."
+	}
 	if c.TaxOffice != "" && utf8.RuneCountInString(c.TaxOffice) < 2 {
 		errs["tax_office"] = "Vergi dairesi en az 2 karakter olmalı."
 	}

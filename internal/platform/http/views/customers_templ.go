@@ -847,7 +847,7 @@ func CustomerFormPage(p PageData, f CustomerForm) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = formField("İlçe", "district", f.Customer.District, f.Errors["district"], "").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = formField("İlçe", "district", f.Customer.District, f.Errors["district"], "Fatura için zorunlu").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

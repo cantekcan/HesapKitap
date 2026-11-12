@@ -35,7 +35,7 @@ func TestStageIssueEArchive(t *testing.T) {
 
 	res, err := c.Issue(ctx, invoice.IssueRequest{
 		ETTN: ettn, LocalRef: "stage-test-" + ettn.String()[:8], Kind: invoice.KindEArchive, Scenario: "EARSIVFATURA",
-		IssueDate: time.Now(), Recipient: invoice.Recipient{Person: true, TaxID: "10000000146", Name: "Test Kullanıcı", City: "İstanbul"},
+		IssueDate: time.Now(), Prefix: os.Getenv("TRENDYOL_STAGE_PREFIX"), Recipient: invoice.Recipient{Person: true, TaxID: "10000000146", Name: "Test Kullanıcı", City: "İstanbul", District: "Kadıköy"},
 		Lines: lines, Totals: totals,
 	})
 	require.NoError(t, err, "fatura kesilemedi")
@@ -43,10 +43,11 @@ func TestStageIssueEArchive(t *testing.T) {
 
 	var status invoice.ProviderStatus
 	for range 30 {
-		var found bool
-		status, found, err = c.Status(ctx, invoice.KindEArchive, ettn)
+		info, found, err := c.Status(ctx, invoice.KindEArchive, ettn)
 		require.NoError(t, err)
 		require.True(t, found, "kesilen fatura durum sorgusunda bulunamadı")
+		status = info.Status
+		t.Logf("durum: %s (%d), no: %s", status, int(status), info.Number)
 		if status.IsFinal() {
 			break
 		}

@@ -47,9 +47,11 @@ where id = $1 and status = 'DRAFT';
 
 -- name: RecordInvoiceResult :exec
 update invoices set
-    status = $2, provider_status = $3, invoice_number = $4, last_error = $5,
-    sent_at = coalesce(sent_at, case when $2 in ('ISSUED') then now() end), updated_at = now()
-where id = $1;
+    status = sqlc.arg(status), provider_status = sqlc.arg(provider_status),
+    invoice_number = case when sqlc.arg(invoice_number)::text <> '' then sqlc.arg(invoice_number)::text else invoice_number end,
+    last_error = sqlc.arg(last_error),
+    sent_at = coalesce(sent_at, case when sqlc.arg(status) = 'ISSUED' then now() end), updated_at = now()
+where id = sqlc.arg(id);
 
 -- name: RevertInvoiceToDraft :exec
 -- Sağlayıcı faturayı kesin olarak reddetti (oluşmadı): kullanıcı düzeltip yeniden deneyebilsin.

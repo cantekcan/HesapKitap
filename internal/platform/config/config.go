@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -34,6 +35,8 @@ type Config struct {
 	EInvoiceEnabled bool
 	// EInvoiceScenario: TEMELFATURA veya TICARIFATURA.
 	EInvoiceScenario string
+	// InvoicePrefix: portalda kullanılacak 3 karakterli fatura serisi (örn. ABC).
+	InvoicePrefix string
 }
 
 // IsProduction reports whether the process runs in production mode.
@@ -60,6 +63,7 @@ func Load(getenv func(string) string) (Config, error) {
 		},
 		EInvoiceEnabled:  get("EINVOICE_ENABLED", "false") == "true",
 		EInvoiceScenario: get("EINVOICE_SCENARIO", "TEMELFATURA"),
+		InvoicePrefix:    get("INVOICE_PREFIX", ""),
 	}
 
 	var errs []error
@@ -70,6 +74,9 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, errors.New("DATABASE_URL zorunlu"))
 	}
 	errs = append(errs, validateTrendyol(cfg)...)
+	if p := cfg.InvoicePrefix; p != "" && !regexp.MustCompile(`^[A-Z0-9]{3}$`).MatchString(p) {
+		errs = append(errs, fmt.Errorf("INVOICE_PREFIX %q geçersiz (3 büyük harf veya rakam olmalı)", p))
+	}
 	if cfg.EInvoiceScenario != "TEMELFATURA" && cfg.EInvoiceScenario != "TICARIFATURA" {
 		errs = append(errs, fmt.Errorf("EINVOICE_SCENARIO %q geçersiz (TEMELFATURA veya TICARIFATURA olmalı)", cfg.EInvoiceScenario))
 	}

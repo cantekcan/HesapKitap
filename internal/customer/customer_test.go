@@ -45,7 +45,7 @@ func TestValidVKN(t *testing.T) {
 }
 
 func valid() customer.Customer {
-	return customer.Customer{Kind: customer.KindPerson, TaxID: "10000000146", Name: "Ali Veli", City: "İstanbul"}
+	return customer.Customer{Kind: customer.KindPerson, TaxID: "10000000146", Name: "Ali Veli", City: "İstanbul", District: "Kadıköy"}
 }
 
 func TestValidate(t *testing.T) {
@@ -57,6 +57,7 @@ func TestValidate(t *testing.T) {
 		"tax_id":      func(c *customer.Customer) { c.TaxID = "123" },
 		"name":        func(c *customer.Customer) { c.Name = "A" },
 		"city":        func(c *customer.Customer) { c.City = "" },
+		"district":    func(c *customer.Customer) { c.District = "" },
 		"postal_code": func(c *customer.Customer) { c.PostalCode = "123" },
 		"email":       func(c *customer.Customer) { c.Email = "yanlis" },
 		"phone":       func(c *customer.Customer) { c.Phone = "12" },

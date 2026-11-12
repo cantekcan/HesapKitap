@@ -62,6 +62,7 @@ type IssueRequest struct {
 	LocalRef    string // bizim fatura kimliğimiz
 	Kind        Kind
 	Scenario    string // e-Fatura: TEMELFATURA | TICARIFATURA
+	Prefix      string // portalda tanımlı 3 karakterli fatura serisi; boşsa sağlayıcının varsayılan serisi
 	TargetAlias string
 	IssueDate   time.Time
 	Notes       string
@@ -85,6 +86,12 @@ func (e *RejectedError) Error() string { return e.Message }
 // ErrNotEArchive is returned when cancelling something that is not an e-Arşiv invoice.
 var ErrNotEArchive = errors.New("yalnızca e-Arşiv faturalar iptal edilebilir; e-Fatura için iade faturası gerekir")
 
+// StatusInfo is the provider's view of an invoice. Number is the invoice number (e.g. ABC2026000000003) and may be empty.
+type StatusInfo struct {
+	Status ProviderStatus
+	Number string
+}
+
 // EInvoiceProvider is the port to the e-invoice service provider.
 type EInvoiceProvider interface {
 	// LookupTaxpayer returns the taxpayer's e-Fatura aliases for a VKN (10 digits) or TCKN (11 digits).
@@ -97,7 +104,7 @@ type EInvoiceProvider interface {
 
 	// Status asks the provider about an invoice by ETTN. found=false (nil error) means the provider has no
 	// such invoice: sending again is safe (ALTIN KURAL 5).
-	Status(ctx context.Context, kind Kind, ettn uuid.UUID) (status ProviderStatus, found bool, err error)
+	Status(ctx context.Context, kind Kind, ettn uuid.UUID) (info StatusInfo, found bool, err error)
 
 	// Cancel cancels an e-Arşiv invoice.
 	Cancel(ctx context.Context, ettn uuid.UUID) error

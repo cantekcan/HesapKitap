@@ -268,6 +268,7 @@ type EArchiveStatus struct {
 	Status      invoice.ProviderStatus `json:"status"`
 	GIBStatus   GIBStatus              `json:"gibStatus"`
 	InvoiceUUID string                 `json:"invoiceUuid"`
+	InvoiceID   string                 `json:"invoiceId"` // fatura numarası (stage'de doğrulandı)
 }
 
 // EInvoiceStatus is the answer of GET .../outgoing-einvoice/status/{invoiceUuid}.
@@ -275,6 +276,7 @@ type EInvoiceStatus struct {
 	Status        invoice.ProviderStatus `json:"status"`
 	GIBStatusCode json.RawMessage        `json:"gibStatusCode"`
 	InvoiceUUID   string                 `json:"invoiceUuid"`
+	InvoiceID     string                 `json:"invoiceId"`
 }
 
 // SentReply is the recipient's answer to a commercial e-Fatura.

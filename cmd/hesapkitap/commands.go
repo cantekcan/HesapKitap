@@ -58,7 +58,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	invoiceStore := db.NewInvoiceStore(pool, queue.Enqueuer{Client: inserter})
 	invoices := &invoice.Service{
 		Store: invoiceStore, Issues: invoiceStore, Provider: provider,
-		Settings: invoice.Settings{EInvoiceEnabled: cfg.EInvoiceEnabled, EInvoiceScenario: cfg.EInvoiceScenario},
+		Settings: invoice.Settings{EInvoiceEnabled: cfg.EInvoiceEnabled, EInvoiceScenario: cfg.EInvoiceScenario, Prefix: cfg.InvoicePrefix},
 	}
 	customers := &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider}
 	invoices.Recipients = customers

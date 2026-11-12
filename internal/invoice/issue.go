@@ -31,6 +31,8 @@ type Settings struct {
 	EInvoiceEnabled bool
 	// EInvoiceScenario is TEMELFATURA or TICARIFATURA.
 	EInvoiceScenario string
+	// Prefix is the invoice series (3 chars) defined in the E-Faturam portal; empty = provider default series.
+	Prefix string
 }
 
 // SendPlan is written together with the outbox job when the user presses "Faturayı Kes".
@@ -110,12 +112,12 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 		return s.fail(ctx, id, ErrNoETTN)
 	}
 
-	status, found, err := s.Provider.Status(ctx, d.Kind, d.ETTN)
+	info, found, err := s.Provider.Status(ctx, d.Kind, d.ETTN)
 	if err != nil {
 		return s.retry(ctx, id, fmt.Errorf("durum sorgulanamadı: %w", err))
 	}
 	if found {
-		return s.record(ctx, id, "", status)
+		return s.record(ctx, id, info.Number, info.Status)
 	}
 
 	t, err := d.Totals()
@@ -123,7 +125,7 @@ func (s *Service) Send(ctx context.Context, id uuid.UUID) error {
 		return s.fail(ctx, id, err)
 	}
 	res, err := s.Provider.Issue(ctx, IssueRequest{
-		ETTN: d.ETTN, LocalRef: id.String(), Kind: d.Kind, Scenario: d.Scenario, TargetAlias: d.TargetAlias,
+		ETTN: d.ETTN, LocalRef: id.String(), Kind: d.Kind, Prefix: s.Settings.Prefix, Scenario: d.Scenario, TargetAlias: d.TargetAlias,
 		IssueDate: d.IssueDate, Notes: d.Notes, Recipient: *d.Recipient, Lines: d.Lines, Totals: t,
 	})
 	var rejected *RejectedError
@@ -176,7 +178,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 			errs = append(errs, err)
 			continue
 		}
-		ps, found, err := s.Provider.Status(ctx, d.Kind, d.ETTN)
+		info, found, err := s.Provider.Status(ctx, d.Kind, d.ETTN)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", id, err))
 			continue
@@ -184,7 +186,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 		if !found {
 			continue // sağlayıcıda görünmüyor: elle bakılmalı; durumu değiştirme
 		}
-		if err := s.record(ctx, id, d.Number, ps); err != nil {
+		if err := s.record(ctx, id, info.Number, info.Status); err != nil {
 			errs = append(errs, err)
 		}
 	}

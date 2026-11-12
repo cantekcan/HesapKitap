@@ -1,6 +1,10 @@
 package invoice
 
-import "strconv"
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
 
 // ProviderStatus is the status code Trendyol E-Faturam reports for an invoice
 // (docs/trendyol-efaturam-api.md, bölüm 9). Magic numbers never appear outside this file.
@@ -70,4 +74,23 @@ func (s ProviderStatus) IsFinal() bool {
 // states count, because the invoice was handed to the provider.
 func (s ProviderStatus) CountsTowardsLedger() bool {
 	return !s.IsFailure() && s != StatusCancelled
+}
+
+// UnmarshalJSON accepts the status as a number (205) or as a numeric string ("205"):
+// stage'de create/status cevapları "20", "305" gibi METİN döndürüyor (2026-11-13).
+func (s *ProviderStatus) UnmarshalJSON(b []byte) error {
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		var str string
+		if err2 := json.Unmarshal(b, &str); err2 != nil {
+			return fmt.Errorf("statü sayı veya metin olmalı: %w", err)
+		}
+		n = json.Number(str)
+	}
+	v, err := strconv.Atoi(n.String())
+	if err != nil {
+		return fmt.Errorf("statü sayıya çevrilemedi: %q", n.String())
+	}
+	*s = ProviderStatus(v)
+	return nil
 }

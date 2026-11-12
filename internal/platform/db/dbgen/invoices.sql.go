@@ -318,26 +318,28 @@ func (q *Queries) ListPendingInvoices(ctx context.Context, limit int32) ([]uuid.
 
 const recordInvoiceResult = `-- name: RecordInvoiceResult :exec
 update invoices set
-    status = $2, provider_status = $3, invoice_number = $4, last_error = $5,
-    sent_at = coalesce(sent_at, case when $2 in ('ISSUED') then now() end), updated_at = now()
-where id = $1
+    status = $1, provider_status = $2,
+    invoice_number = case when $3::text <> '' then $3::text else invoice_number end,
+    last_error = $4,
+    sent_at = coalesce(sent_at, case when $1 = 'ISSUED' then now() end), updated_at = now()
+where id = $5
 `
 
 type RecordInvoiceResultParams struct {
-	ID             uuid.UUID
 	Status         string
 	ProviderStatus pgtype.Int4
 	InvoiceNumber  string
 	LastError      string
+	ID             uuid.UUID
 }
 
 func (q *Queries) RecordInvoiceResult(ctx context.Context, arg RecordInvoiceResultParams) error {
 	_, err := q.db.Exec(ctx, recordInvoiceResult,
-		arg.ID,
 		arg.Status,
 		arg.ProviderStatus,
 		arg.InvoiceNumber,
 		arg.LastError,
+		arg.ID,
 	)
 	return err
 }

@@ -180,7 +180,7 @@ templ CustomerFormPage(p PageData, f CustomerForm) {
 					@formField("Ad Soyad / Ünvan", "name", f.Customer.Name, f.Errors["name"], "Şahıs ise: Ad Soyad")
 					@formField("Vergi dairesi", "tax_office", f.Customer.TaxOffice, f.Errors["tax_office"], "")
 					@formField("İl", "city", f.Customer.City, f.Errors["city"], "Fatura için zorunlu")
-					@formField("İlçe", "district", f.Customer.District, f.Errors["district"], "")
+					@formField("İlçe", "district", f.Customer.District, f.Errors["district"], "Fatura için zorunlu")
 					@formField("Posta kodu", "postal_code", f.Customer.PostalCode, f.Errors["postal_code"], "5 hane")
 				</div>
 				@formField("Adres", "address", f.Customer.Address, f.Errors["address"], "")

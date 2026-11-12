@@ -55,13 +55,13 @@ func (f *fakeProvider) Issue(_ context.Context, req invoice.IssueRequest) (invoi
 	return invoice.IssueResult{Number: "ABC2026000000001", Status: invoice.StatusCreated}, nil
 }
 
-func (f *fakeProvider) Status(_ context.Context, _ invoice.Kind, ettn uuid.UUID) (invoice.ProviderStatus, bool, error) {
+func (f *fakeProvider) Status(_ context.Context, _ invoice.Kind, ettn uuid.UUID) (invoice.StatusInfo, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, ok := f.created[ettn]; ok {
-		return invoice.StatusApproved, true, nil
+		return invoice.StatusInfo{Status: invoice.StatusApproved, Number: "ABC2026000000001"}, true, nil
 	}
-	return 0, false, nil
+	return invoice.StatusInfo{}, false, nil
 }
 
 func (f *fakeProvider) Cancel(_ context.Context, ettn uuid.UUID) error {

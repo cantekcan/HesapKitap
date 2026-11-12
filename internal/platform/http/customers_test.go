@@ -12,7 +12,7 @@ import (
 
 func newCustomer(taxID, name string) url.Values {
 	return url.Values{
-		"kind": {"PERSON"}, "tax_id": {taxID}, "name": {name}, "city": {"İstanbul"},
+		"kind": {"PERSON"}, "tax_id": {taxID}, "name": {name}, "city": {"İstanbul"}, "district": {"Kadıköy"},
 		"email": {"ALI@Ornek.com"}, "opening_balance": {"1.250,50"}, "active": {"1"},
 	}
 }
@@ -77,7 +77,7 @@ func TestCustomerTaxpayerMultipleAliasesNeedChoice(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
 
 	r := a.do(http.MethodPost, "/customers", url.Values{
-		"kind": {"COMPANY"}, "tax_id": {"1234567890"}, "name": {"Çift Etiket A.Ş."}, "city": {"Ankara"}, "active": {"1"},
+		"kind": {"COMPANY"}, "tax_id": {"1234567890"}, "name": {"Çift Etiket A.Ş."}, "city": {"Ankara"}, "district": {"Çankaya"}, "active": {"1"},
 	}, nil)
 	require.Equal(t, http.StatusSeeOther, r.Status)
 	id := customerIDRe.FindStringSubmatch(r.Header.Get("Location"))[1]

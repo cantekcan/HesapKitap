@@ -27,7 +27,7 @@ func mustLocation(name string) *time.Location {
 }
 
 // Issue creates an e-Arşiv or e-Fatura. HTTP 400/422 answers are definite refusals (*invoice.RejectedError);
-// every other error leaves the outcome unknown and the caller must check the status before retrying.
+// 404 on create means a missing portal setting (e.g. default series), not an existing invoice; every other error leaves the outcome unknown and the caller must check the status before retrying.
 func (c *Client) Issue(ctx context.Context, in invoice.IssueRequest) (invoice.IssueResult, error) {
 	req := buildRequest(in)
 	var (
@@ -43,7 +43,7 @@ func (c *Client) Issue(ctx context.Context, in invoice.IssueRequest) (invoice.Is
 		return invoice.IssueResult{}, errors.New("bilinmeyen fatura türü")
 	}
 	var apiErr *APIError
-	if errors.As(err, &apiErr) && (apiErr.Status == 400 || apiErr.Status == 422) {
+	if errors.As(err, &apiErr) && (apiErr.Status == 400 || apiErr.Status == 404 || apiErr.Status == 422) {
 		return invoice.IssueResult{}, &invoice.RejectedError{Message: UserMessage(err)}
 	}
 	if err != nil {
@@ -57,6 +57,7 @@ func buildRequest(in invoice.IssueRequest) InvoiceRequest {
 	t := in.Totals
 	req := InvoiceRequest{
 		LocalReferenceID: in.LocalRef,
+		Prefix:           in.Prefix,
 		RecipientInfo:    recipientInfo(in.Recipient),
 		InvoiceInfo: InvoiceInfo{
 			InvoiceType:     InvoiceType(in.Scenario),
@@ -90,6 +91,10 @@ func buildRequest(in invoice.IssueRequest) InvoiceRequest {
 			TaxAmount:           r.Tax,
 			// ⚠️ totalAmount KDV dahil mi hariç mi: stage'de doğrulanacak (docs Açık Sorular 3). Şimdilik KDV dahil.
 			TotalAmount: r.Total,
+			// Stage her kalemde totalTax ister (422: "Total tax (totalTax) must be provided for each invoice line").
+			TotalTax: &TotalTax{TotalTaxAmount: r.Tax, SubTotalTaxes: []SubTotalTax{{
+				TaxableAmount: r.Taxable, TaxAmount: r.Tax, TaxType: KDVTaxType, Percent: int32(l.TaxPercent), Name: "KDV", //nolint:gosec // 0-100 doğrulandı
+			}}},
 		})
 	}
 	for _, g := range t.TaxGroups {
@@ -127,32 +132,32 @@ func issuedAt(date time.Time) *time.Time {
 }
 
 // Status implements invoice.EInvoiceProvider. A 404 yields found=false with a nil error.
-func (c *Client) Status(ctx context.Context, kind invoice.Kind, ettn uuid.UUID) (invoice.ProviderStatus, bool, error) {
+func (c *Client) Status(ctx context.Context, kind invoice.Kind, ettn uuid.UUID) (invoice.StatusInfo, bool, error) {
 	var (
-		status invoice.ProviderStatus
-		err    error
+		info invoice.StatusInfo
+		err  error
 	)
 	switch kind {
 	case invoice.KindEArchive:
 		var s *EArchiveStatus
 		if s, err = c.EArchiveStatus(ctx, ettn.String()); err == nil {
-			status = s.Status
+			info = invoice.StatusInfo{Status: s.Status, Number: s.InvoiceID}
 		}
 	case invoice.KindEInvoice:
 		var s *EInvoiceStatus
 		if s, err = c.OutgoingEInvoiceStatus(ctx, ettn.String()); err == nil {
-			status = s.Status
+			info = invoice.StatusInfo{Status: s.Status, Number: s.InvoiceID}
 		}
 	default:
-		return 0, false, errors.New("bilinmeyen fatura türü")
+		return invoice.StatusInfo{}, false, errors.New("bilinmeyen fatura türü")
 	}
 	if IsNotFound(err) {
-		return 0, false, nil
+		return invoice.StatusInfo{}, false, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return invoice.StatusInfo{}, false, err
 	}
-	return status, true, nil
+	return info, true, nil
 }
 
 // Cancel implements invoice.EInvoiceProvider (e-Arşiv only).
