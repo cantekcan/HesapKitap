@@ -1,7 +1,7 @@
 // Package queue wraps the River (Postgres-backed) job queue.
 //
-// Faz 1'de sadece iskelet vardır: iş türleri (fatura gönderme, durum sorgulama) Faz 5'te
-// River.AddWorker ile eklenir. Gönderim işleri faturayla aynı transaction'da InsertTx ile kuyruğa yazılır.
+// Faz 1'de yalnızca iskelet vardır. İş türleri (fatura gönderme, durum sorgulama) Faz 5'te
+// workers paketine eklenir. Gönderim işleri faturayla aynı transaction'da InsertTx ile kuyruğa yazılır.
 package queue
 
 import (
@@ -17,15 +17,17 @@ import (
 // Client is the River client bound to pgx transactions.
 type Client = river.Client[pgx.Tx]
 
-// New creates a River client. Call Start to begin processing and Stop on shutdown.
+// New creates a River client.
+//
+// workers == nil ise istemci yalnızca iş ekleyebilir (insert-only) ve işleme başlatılamaz: River en az
+// bir worker kayıtlı olmadan kuyruk işlemeyi reddeder. İlk iş türü eklenince çağıran workers verir ve Start eder.
 func New(pool *pgxpool.Pool, workers *river.Workers, log *slog.Logger) (*Client, error) {
-	c, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
-		Logger:  log,
-		Workers: workers,
-		Queues: map[string]river.QueueConfig{
-			river.QueueDefault: {MaxWorkers: 5},
-		},
-	})
+	cfg := &river.Config{Logger: log}
+	if workers != nil {
+		cfg.Workers = workers
+		cfg.Queues = map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}}
+	}
+	c, err := river.NewClient(riverpgxv5.New(pool), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("river istemcisi oluşturulamadı: %w", err)
 	}

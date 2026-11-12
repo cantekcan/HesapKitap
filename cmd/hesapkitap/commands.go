@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/riverqueue/river"
 	"golang.org/x/term"
 
 	"hesapkitap/internal/platform/auth"
@@ -36,13 +35,10 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
-	// Arka plan işleri (River). Faz 5'te fatura gönderme ve durum sorgulama işleri buraya eklenir.
-	jobs, err := queue.New(pool, river.NewWorkers(), log)
-	if err != nil {
+	// Arka plan işleri (River). Faz 5'te fatura gönderme ve durum sorgulama worker'ları eklenince
+	// queue.New'e workers verilir ve jobs.Start/Stop burada çağrılır. Şimdilik insert-only istemci.
+	if _, err := queue.New(pool, nil, log); err != nil {
 		return err
-	}
-	if err := jobs.Start(ctx); err != nil {
-		return fmt.Errorf("iş kuyruğu başlatılamadı: %w", err)
 	}
 
 	handler, err := httpserver.New(httpserver.Deps{
@@ -86,10 +82,6 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
-	}
-	// Çalışan işlerin bitmesini bekle; sonra havuz kapanır (defer).
-	if err := jobs.Stop(shutdownCtx); err != nil {
-		return fmt.Errorf("iş kuyruğu düzgün durdurulamadı: %w", err)
 	}
 	log.Info("sunucu kapandı")
 	return nil
@@ -138,7 +130,8 @@ func readPassword() (string, error) {
 		if err != nil && line == "" {
 			return "", fmt.Errorf("şifre okunamadı: %w", err)
 		}
-		return strings.TrimRight(line, "\r\n"), nil
+		// Windows PowerShell 5.1 pipe'ı metnin başına UTF-8 BOM ekleyebilir; şifrenin parçası olmamalı.
+		return strings.TrimRight(strings.TrimPrefix(line, string(rune(0xFEFF))), "\r\n"), nil
 	}
 
 	fmt.Fprint(os.Stderr, "Şifre: ")

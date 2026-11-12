@@ -10,7 +10,7 @@ vars:
   TAILWIND: tools/bin/tailwindcss{{.EXE}}
   CSS_IN: internal/platform/http/assets/input.css
   CSS_OUT: internal/platform/http/static/app.css
-  BIN: '{{.GOBIN}}/bin'
+  BIN: '{{toSlash .GOBIN}}/bin'
 
 tasks:
   default:
@@ -102,7 +102,7 @@ tasks:
   dev:air:
     internal: true
     cmds:
-      - '{{.BIN}}/air{{.EXE}} --build.cmd "go build -o tmp/hesapkitap{{.EXE}} ./cmd/hesapkitap" --build.entrypoint "tmp/hesapkitap{{.EXE}}"'
+      - '{{.BIN}}/air{{.EXE}}'
 
   test:
     desc: Testler (dışarıya istek atmaz; Docker yoksa Postgres testleri atlanır)

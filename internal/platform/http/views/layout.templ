@@ -54,7 +54,7 @@ templ Layout(p PageData) {
 			<div x-show="open" x-cloak class="fixed inset-0 z-20 bg-black/40 lg:hidden" @click="open = false"></div>
 			<aside
 				class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col bg-slate-900 p-4 transition-transform lg:translate-x-0"
-				:class="open ? 'translate-x-0' : '-translate-x-full'"
+				:class="{ '-translate-x-full': !open }"
 			>
 				<div class="mb-6 px-3 text-lg font-semibold text-white">Hesap Kitap</div>
 				<nav class="flex-1 space-y-1" aria-label="Ana menü">

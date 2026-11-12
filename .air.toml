@@ -1,8 +1,10 @@
-# Komutlar Taskfile.yml'de (task dev) verilir; burada sadece izleme ayarları var.
+# `task dev` tarafından çalıştırılır. Çıktı adı .exe ile biter ki Windows'ta da çalışsın (diğer OS'lerde zararsız).
 root = "."
 tmp_dir = "tmp"
 
 [build]
+  cmd = "go build -o ./tmp/hesapkitap.exe ./cmd/hesapkitap"
+  entrypoint = ["./tmp/hesapkitap.exe"]
   include_ext = ["go", "css", "js", "sql"]
   exclude_dir = ["tmp", "tools", "bin", ".git", ".github", "docs", "logs"]
   exclude_regex = ["_test\\.go"]
