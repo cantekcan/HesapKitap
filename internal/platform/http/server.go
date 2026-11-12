@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"hesapkitap/internal/customer"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
 )
@@ -28,6 +29,8 @@ type Deps struct {
 	Pool     *pgxpool.Pool
 	Sessions *scs.SessionManager
 	Auth     *auth.Service
+
+	Customers *customer.Service
 }
 
 type server struct {
@@ -63,8 +66,15 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "POST /login", http.HandlerFunc(s.loginSubmit))
 	route(app, "POST /logout", s.requireAuth(http.HandlerFunc(s.logout)))
 	route(app, "GET /{$}", s.requireAuth(s.page("dashboard", "Pano", func(p views.PageData) templComponent { return views.Dashboard(p) })))
+	authed := func(h http.HandlerFunc) http.Handler { return s.requireAuth(h) }
+	route(app, "GET /customers", authed(s.customerList))
+	route(app, "GET /customers/new", authed(s.customerNew))
+	route(app, "POST /customers", authed(s.customerCreate))
+	route(app, "GET /customers/{id}", authed(s.customerShow))
+	route(app, "POST /customers/{id}", authed(s.customerUpdate))
+	route(app, "POST /customers/{id}/taxpayer", authed(s.customerTaxpayer))
+	route(app, "POST /customers/{id}/taxpayer/select", authed(s.customerSelectAlias))
 	for _, pg := range []struct{ path, key, title, phase string }{
-		{"/customers", "customers", "Müşteriler", "Faz 3"},
 		{"/products", "products", "Ürünler", "Faz 4"},
 		{"/invoices", "invoices", "Faturalar", "Faz 4–5"},
 		{"/payments", "payments", "Tahsilatlar", "Faz 6"},

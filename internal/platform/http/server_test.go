@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"hesapkitap/internal/customer"
 	"hesapkitap/internal/platform/auth"
+	"hesapkitap/internal/platform/db"
 	"hesapkitap/internal/platform/db/dbgen"
 	"hesapkitap/internal/platform/db/dbtest"
 	httpserver "hesapkitap/internal/platform/http"
@@ -46,10 +48,11 @@ func newTestApp(t *testing.T) *testApp {
 	require.NoError(t, err)
 
 	h, err := httpserver.New(httpserver.Deps{
-		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Pool:     pool,
-		Sessions: auth.NewSessionManager(pool, false),
-		Auth:     svc,
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Pool:      pool,
+		Sessions:  auth.NewSessionManager(pool, false),
+		Auth:      svc,
+		Customers: &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: stubProvider{}},
 	})
 	require.NoError(t, err)
 

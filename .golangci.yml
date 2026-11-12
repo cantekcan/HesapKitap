@@ -21,6 +21,11 @@ linters:
     - sqlclosecheck
     - unconvert
   settings:
+    misspell:
+      # Türkçe kullanıcı metinleri İngilizce yazım sözlüğüne takılmasın
+      ignore-rules:
+        - adres
+        - Adres
     forbidigo:
       forbid:
         - pattern: ^panic$

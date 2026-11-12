@@ -1,0 +1,251 @@
+package views
+
+import (
+	"fmt"
+	"time"
+
+	"hesapkitap/internal/customer"
+	"hesapkitap/internal/money"
+)
+
+// CustomerList is the data of the customer list page and its HTMX fragment.
+type CustomerList struct {
+	Items     []customer.Customer
+	Query     string
+	Status    string
+	Page      int
+	PageCount int
+	Total     int
+}
+
+// CustomerForm is the data of the new/edit page.
+type CustomerForm struct {
+	Customer       customer.Customer
+	IsNew          bool
+	Errors         customer.FieldErrors
+	OpeningBalance string // kullanıcının yazdığı metin
+	Saved          bool
+	ProviderReady  bool
+}
+
+const inputClass = "mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+const btnPrimary = "inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+const btnSecondary = "inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+
+func pageHref(l CustomerList, page int) string {
+	return fmt.Sprintf("/customers?q=%s&status=%s&page=%d", templURLEscape(l.Query), l.Status, page)
+}
+
+func eInvoiceBadge(c customer.Customer) string {
+	switch {
+	case c.TaxpayerCheckedAt == nil:
+		return "Sorgulanmadı"
+	case c.IsEInvoiceUser:
+		return "e-Fatura"
+	default:
+		return "e-Arşiv"
+	}
+}
+
+func checkedAt(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.In(time.Local).Format("02.01.2006 15:04")
+}
+
+templ CustomersPage(p PageData, l CustomerList) {
+	@Layout(p) {
+		<div class="mb-4 flex flex-wrap items-center gap-3">
+			<form
+				class="flex flex-1 flex-wrap items-center gap-2"
+				hx-get="/customers"
+				hx-target="#customer-list"
+				hx-trigger="input changed delay:300ms from:#q, change from:#status, submit"
+				hx-push-url="true"
+			>
+				<input id="q" name="q" type="search" value={ l.Query } placeholder="Ad, ünvan veya VKN/TCKN ara…" class="w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-80"/>
+				<select id="status" name="status" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+					<option value="" selected?={ l.Status == "" }>Tümü</option>
+					<option value="active" selected?={ l.Status == "active" }>Aktif</option>
+					<option value="passive" selected?={ l.Status == "passive" }>Pasif</option>
+				</select>
+			</form>
+			<a href="/customers/new" class={ btnPrimary }>+ Yeni müşteri</a>
+		</div>
+		@CustomerListFragment(l)
+	}
+}
+
+templ CustomerListFragment(l CustomerList) {
+	<div id="customer-list">
+		if len(l.Items) == 0 {
+			<div class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+				if l.Query != "" || l.Status != "" {
+					Aramanıza uyan müşteri yok.
+				} else {
+					Henüz müşteri yok. “Yeni müşteri” ile ilkini ekleyin.
+				}
+			</div>
+		} else {
+			<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+				<table class="min-w-full divide-y divide-slate-200 text-sm">
+					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<tr>
+							<th class="px-4 py-3">Ad / Ünvan</th>
+							<th class="hidden px-4 py-3 sm:table-cell">VKN / TCKN</th>
+							<th class="hidden px-4 py-3 md:table-cell">İl</th>
+							<th class="px-4 py-3">Fatura türü</th>
+							<th class="hidden px-4 py-3 text-right md:table-cell">Açılış bakiyesi</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						for _, c := range l.Items {
+							<tr class="hover:bg-slate-50">
+								<td class="px-4 py-3">
+									<a href={ templ.SafeURL("/customers/" + c.ID.String()) } class="font-medium text-slate-900 hover:underline">{ c.Name }</a>
+									if !c.Active {
+										<span class="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">Pasif</span>
+									}
+								</td>
+								<td class="hidden px-4 py-3 font-mono text-slate-600 sm:table-cell">{ c.TaxID }</td>
+								<td class="hidden px-4 py-3 text-slate-600 md:table-cell">{ c.City }</td>
+								<td class="px-4 py-3">
+									<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{ eInvoiceBadge(c) }</span>
+								</td>
+								<td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">{ money.FormatTL(c.OpeningBalance) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="mt-3 flex items-center justify-between text-sm text-slate-600">
+				<span>{ fmt.Sprint(l.Total) } müşteri</span>
+				if l.PageCount > 1 {
+					<div class="flex items-center gap-2">
+						if l.Page > 1 {
+							<a href={ templ.SafeURL(pageHref(l, l.Page-1)) } hx-get={ pageHref(l, l.Page-1) } hx-target="#customer-list" hx-push-url="true" class={ btnSecondary }>← Önceki</a>
+						}
+						<span>{ fmt.Sprint(l.Page) } / { fmt.Sprint(l.PageCount) }</span>
+						if l.Page < l.PageCount {
+							<a href={ templ.SafeURL(pageHref(l, l.Page+1)) } hx-get={ pageHref(l, l.Page+1) } hx-target="#customer-list" hx-push-url="true" class={ btnSecondary }>Sonraki →</a>
+						}
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+templ formField(label, name, value, errMsg, hint string) {
+	<div>
+		<label for={ name } class="block text-sm font-medium text-slate-700">{ label }</label>
+		<input id={ name } name={ name } value={ value } class={ inputClass } if errMsg != "" { aria-invalid="true" }/>
+		if errMsg != "" {
+			<p class="mt-1 text-sm text-red-600">{ errMsg }</p>
+		} else if hint != "" {
+			<p class="mt-1 text-xs text-slate-500">{ hint }</p>
+		}
+	</div>
+}
+
+templ CustomerFormPage(p PageData, f CustomerForm) {
+	@Layout(p) {
+		<div class="grid gap-6 lg:grid-cols-3">
+			<form method="post" action={ templ.SafeURL(customerFormAction(f)) } class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+				if f.Saved {
+					<div class="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">Kaydedildi.</div>
+				}
+				if len(f.Errors) > 0 {
+					<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
+				}
+				<div>
+					<span class="block text-sm font-medium text-slate-700">Müşteri türü</span>
+					<div class="mt-1 flex gap-6 text-sm">
+						<label class="flex items-center gap-2"><input type="radio" name="kind" value="COMPANY" checked?={ f.Customer.Kind != customer.KindPerson }/> Şirket (VKN, 10 hane)</label>
+						<label class="flex items-center gap-2"><input type="radio" name="kind" value="PERSON" checked?={ f.Customer.Kind == customer.KindPerson }/> Şahıs (TCKN, 11 hane)</label>
+					</div>
+					if f.Errors["kind"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["kind"] }</p>
+					}
+				</div>
+				<div class="grid gap-4 sm:grid-cols-2">
+					@formField("VKN / TCKN", "tax_id", f.Customer.TaxID, f.Errors["tax_id"], "")
+					@formField("Ad Soyad / Ünvan", "name", f.Customer.Name, f.Errors["name"], "Şahıs ise: Ad Soyad")
+					@formField("Vergi dairesi", "tax_office", f.Customer.TaxOffice, f.Errors["tax_office"], "")
+					@formField("İl", "city", f.Customer.City, f.Errors["city"], "Fatura için zorunlu")
+					@formField("İlçe", "district", f.Customer.District, f.Errors["district"], "")
+					@formField("Posta kodu", "postal_code", f.Customer.PostalCode, f.Errors["postal_code"], "5 hane")
+				</div>
+				@formField("Adres", "address", f.Customer.Address, f.Errors["address"], "")
+				<div class="grid gap-4 sm:grid-cols-2">
+					@formField("E-posta", "email", f.Customer.Email, f.Errors["email"], "")
+					@formField("Telefon", "phone", f.Customer.Phone, f.Errors["phone"], "Örn. 05321112233 veya +905321112233")
+					@formField("Açılış bakiyesi (₺)", "opening_balance", f.OpeningBalance, f.Errors["opening_balance"], "Müşterinin bize başlangıçtaki borcu. Alacaklıysa eksi yazın.")
+				</div>
+				<div>
+					<label for="note" class="block text-sm font-medium text-slate-700">Not</label>
+					<textarea id="note" name="note" rows="2" class={ inputClass }>{ f.Customer.Note }</textarea>
+				</div>
+				<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="active" value="1" checked?={ f.Customer.Active }/> Aktif</label>
+				<div class="flex gap-3 pt-2">
+					<button type="submit" class={ btnPrimary }>Kaydet</button>
+					<a href="/customers" class={ btnSecondary }>Listeye dön</a>
+				</div>
+			</form>
+			if !f.IsNew {
+				<aside class="space-y-4">
+					@TaxpayerPanel(f.Customer, nil, "", f.ProviderReady)
+				</aside>
+			}
+		</div>
+	}
+}
+
+func customerFormAction(f CustomerForm) string {
+	if f.IsNew {
+		return "/customers"
+	}
+	return "/customers/" + f.Customer.ID.String()
+}
+
+// TaxpayerPanel shows the e-Fatura status of the customer and the lookup button. res/msg are set by the lookup action.
+templ TaxpayerPanel(c customer.Customer, res *customer.TaxpayerResult, msg string, providerReady bool) {
+	<div id="taxpayer" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+		<h2 class="text-sm font-semibold text-slate-900">e-Fatura durumu</h2>
+		if msg != "" {
+			<p class="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{ msg }</p>
+		}
+		if res != nil && res.NeedsChoice {
+			<p class="mt-2 text-sm text-slate-700">Birden fazla posta kutusu etiketi var. Fatura hangisine gitsin?</p>
+			<form hx-post={ "/customers/" + c.ID.String() + "/taxpayer/select" } hx-target="#taxpayer" hx-swap="outerHTML" class="mt-2 space-y-2">
+				for i, a := range res.Aliases {
+					<label class="flex items-start gap-2 text-sm">
+						<input type="radio" name="alias" value={ a.Alias } checked?={ i == 0 } class="mt-1"/>
+						<span><span class="font-mono">{ a.Alias }</span><br/><span class="text-xs text-slate-500">{ a.Title }</span></span>
+					</label>
+				}
+				<button type="submit" class={ btnPrimary }>Bu etiketi kaydet</button>
+			</form>
+		} else {
+			<dl class="mt-2 space-y-1 text-sm">
+				<div class="flex justify-between"><dt class="text-slate-500">Fatura türü</dt><dd class="font-medium">{ eInvoiceBadge(c) }</dd></div>
+				if c.IsEInvoiceUser {
+					<div><dt class="text-slate-500">Etiket</dt><dd class="break-all font-mono text-xs">{ c.EInvoiceAlias }</dd></div>
+				}
+				if c.TaxpayerCheckedAt != nil {
+					<div class="flex justify-between"><dt class="text-slate-500">Son sorgu</dt><dd>{ checkedAt(c.TaxpayerCheckedAt) }</dd></div>
+				}
+			</dl>
+			if c.TaxpayerCheckedAt == nil {
+				<p class="mt-2 text-xs text-slate-500">Henüz sorgulanmadı. Fatura kesilirken e-Fatura/e-Arşiv ayrımı için gerekir.</p>
+			}
+			if providerReady {
+				<button type="button" hx-post={ "/customers/" + c.ID.String() + "/taxpayer" } hx-target="#taxpayer" hx-swap="outerHTML" hx-indicator="#taxpayer" class={ btnSecondary + " mt-3" }>Mükellef sorgula</button>
+			} else {
+				<p class="mt-3 text-xs text-amber-700">Trendyol bağlantısı ayarlı değil (.env: TRENDYOL_EMAIL / TRENDYOL_PASSWORD).</p>
+			}
+		}
+	</div>
+}
+

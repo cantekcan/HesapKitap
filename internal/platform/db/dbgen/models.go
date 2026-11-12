@@ -9,6 +9,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Customer struct {
+	ID                uuid.UUID
+	Kind              string
+	TaxID             string
+	Name              string
+	TaxOffice         string
+	Address           string
+	District          string
+	City              string
+	PostalCode        string
+	Email             string
+	Phone             string
+	Note              string
+	Active            bool
+	IsEinvoiceUser    bool
+	EinvoiceAlias     string
+	TaxpayerCheckedAt pgtype.Timestamptz
+	OpeningBalance    int64
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
 type Session struct {
 	Token  string
 	Data   []byte

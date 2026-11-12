@@ -13,12 +13,15 @@ import (
 
 	"golang.org/x/term"
 
+	"hesapkitap/internal/customer"
+	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/config"
 	"hesapkitap/internal/platform/db"
 	"hesapkitap/internal/platform/db/dbgen"
 	httpserver "hesapkitap/internal/platform/http"
 	"hesapkitap/internal/platform/queue"
+	"hesapkitap/internal/trendyol"
 )
 
 const shutdownTimeout = 30 * time.Second
@@ -41,11 +44,22 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
+	// Trendyol bağlantısı ayarlıysa mükellef sorgusu açılır; değilse düğme pasif görünür.
+	var provider invoice.EInvoiceProvider
+	if t := cfg.Trendyol; t.BaseURL != "" && t.Email != "" && t.Password != "" {
+		tc, err := trendyol.New(trendyol.Config{BaseURL: t.BaseURL, Email: t.Email, Password: t.Password, Logger: log})
+		if err != nil {
+			return fmt.Errorf("trendyol istemcisi kurulamadı: %w", err)
+		}
+		provider = tc
+	}
+
 	handler, err := httpserver.New(httpserver.Deps{
-		Logger:   log,
-		Pool:     pool,
-		Sessions: auth.NewSessionManager(pool, cfg.IsProduction()),
-		Auth:     authSvc,
+		Customers: &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider},
+		Logger:    log,
+		Pool:      pool,
+		Sessions:  auth.NewSessionManager(pool, cfg.IsProduction()),
+		Auth:      authSvc,
 	})
 	if err != nil {
 		return fmt.Errorf("http sunucusu kurulamadı: %w", err)
