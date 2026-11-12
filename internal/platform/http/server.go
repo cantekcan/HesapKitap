@@ -16,8 +16,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"hesapkitap/internal/customer"
+	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
+	"hesapkitap/internal/product"
 )
 
 //go:embed static
@@ -31,6 +33,8 @@ type Deps struct {
 	Auth     *auth.Service
 
 	Customers *customer.Service
+	Products  *product.Service
+	Invoices  *invoice.Service
 }
 
 type server struct {
@@ -74,9 +78,19 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "POST /customers/{id}", authed(s.customerUpdate))
 	route(app, "POST /customers/{id}/taxpayer", authed(s.customerTaxpayer))
 	route(app, "POST /customers/{id}/taxpayer/select", authed(s.customerSelectAlias))
+	route(app, "GET /products", authed(s.productList))
+	route(app, "GET /products/new", authed(s.productNew))
+	route(app, "POST /products", authed(s.productCreate))
+	route(app, "GET /products/{id}", authed(s.productShow))
+	route(app, "POST /products/{id}", authed(s.productUpdate))
+	route(app, "GET /invoices", authed(s.invoiceList))
+	route(app, "GET /invoices/new", authed(s.invoiceNew))
+	route(app, "POST /invoices/preview", authed(s.invoicePreview))
+	route(app, "POST /invoices", authed(s.invoiceSave))
+	route(app, "GET /invoices/{id}", authed(s.invoiceShow))
+	route(app, "POST /invoices/{id}", authed(s.invoiceSave))
+	route(app, "POST /invoices/{id}/delete", authed(s.invoiceDelete))
 	for _, pg := range []struct{ path, key, title, phase string }{
-		{"/products", "products", "Ürünler", "Faz 4"},
-		{"/invoices", "invoices", "Faturalar", "Faz 4–5"},
 		{"/payments", "payments", "Tahsilatlar", "Faz 6"},
 	} {
 		phase := pg.phase

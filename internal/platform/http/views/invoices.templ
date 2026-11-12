@@ -1,0 +1,325 @@
+package views
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"hesapkitap/internal/customer"
+	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/money"
+	"hesapkitap/internal/product"
+)
+
+// InvoiceList is the data of the invoice list page and its HTMX fragment.
+type InvoiceList struct {
+	Items     []invoice.Summary
+	Query     string
+	Status    string
+	Page      int
+	PageCount int
+	Total     int
+}
+
+// LineRow is one editable invoice line as the user typed it (strings, so bad input can be shown again).
+type LineRow struct {
+	Key      int    `json:"key"`
+	Product  string `json:"product"`
+	Name     string `json:"name"`
+	Unit     string `json:"unit"`
+	Qty      string `json:"qty"`
+	Price    string `json:"price"`
+	Discount string `json:"discount"`
+	Tax      string `json:"tax"`
+}
+
+// InvoiceForm is the data of the new/edit draft page.
+type InvoiceForm struct {
+	ID         string // boş = yeni
+	CustomerID string
+	IssueDate  string // yyyy-mm-dd
+	DueDate    string
+	Notes      string
+	Rows       []LineRow
+	Errors     invoice.FieldErrors
+	Customers  []customer.Customer
+	Products   []product.Product
+	Totals     *invoice.Totals
+	TotalsErr  string
+	Saved      bool
+}
+
+func invoicePageHref(l InvoiceList, page int) string {
+	return fmt.Sprintf("/invoices?q=%s&status=%s&page=%d", templURLEscape(l.Query), l.Status, page)
+}
+
+func dateText(t time.Time) string { return t.Format("02.01.2006") }
+
+func dateTextPtr(t *time.Time) string {
+	if t == nil {
+		return "—"
+	}
+	return dateText(*t)
+}
+
+type productOption struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Unit  string `json:"unit"`
+	Price string `json:"price"`
+	Tax   string `json:"tax"`
+}
+
+// alpineData is the x-data object of the line editor: the rows and the catalogue used to prefill a row.
+func alpineData(f InvoiceForm) string {
+	opts := make([]productOption, len(f.Products))
+	for i, p := range f.Products {
+		opts[i] = productOption{ID: p.ID.String(), Name: p.Name, Unit: p.Unit, Price: money.Format(p.UnitPrice), Tax: fmt.Sprint(p.TaxPercent)}
+	}
+	rows, _ := json.Marshal(f.Rows)
+	prods, _ := json.Marshal(opts)
+	return fmt.Sprintf(`{ rows: %s, products: %s, next: %d,
+		add() { this.rows.push({ key: this.next++, product: '', name: '', unit: 'C62', qty: '1', price: '', discount: '', tax: '20' }); this.$nextTick(() => this.$dispatch('recalc')) },
+		remove(i) { this.rows.splice(i, 1); this.$nextTick(() => this.$dispatch('recalc')) },
+		pick(r) { const p = this.products.find(x => x.id === r.product); if (!p) return; r.name = p.name; r.unit = p.unit; r.price = p.price; r.tax = p.tax; this.$nextTick(() => this.$dispatch('recalc')) } }`,
+		rows, prods, len(f.Rows)+1)
+}
+
+templ InvoicesPage(p PageData, l InvoiceList) {
+	@Layout(p) {
+		<div class="mb-4 flex flex-wrap items-center gap-3">
+			<form
+				class="flex flex-1 flex-wrap items-center gap-2"
+				hx-get="/invoices"
+				hx-target="#invoice-list"
+				hx-trigger="input changed delay:300ms from:#q, change from:#status, submit"
+				hx-push-url="true"
+			>
+				<input id="q" name="q" type="search" value={ l.Query } placeholder="Müşteri adı ara…" class="w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-80"/>
+				<select id="status" name="status" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+					<option value="" selected?={ l.Status == "" }>Tüm durumlar</option>
+					<option value="DRAFT" selected?={ l.Status == "DRAFT" }>Taslak</option>
+				</select>
+			</form>
+			<a href="/invoices/new" class={ btnPrimary }>+ Yeni fatura</a>
+		</div>
+		@InvoiceListFragment(l)
+	}
+}
+
+templ InvoiceListFragment(l InvoiceList) {
+	<div id="invoice-list">
+		if len(l.Items) == 0 {
+			<div class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+				if l.Query != "" || l.Status != "" {
+					Aramanıza uyan fatura yok.
+				} else {
+					Henüz fatura yok. “Yeni fatura” ile ilk taslağı oluşturun.
+				}
+			</div>
+		} else {
+			<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+				<table class="min-w-full divide-y divide-slate-200 text-sm">
+					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<tr>
+							<th class="px-4 py-3">Tarih</th>
+							<th class="px-4 py-3">Müşteri</th>
+							<th class="px-4 py-3">Durum</th>
+							<th class="hidden px-4 py-3 sm:table-cell">Vade</th>
+							<th class="px-4 py-3 text-right">Tutar</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						for _, s := range l.Items {
+							<tr class="hover:bg-slate-50">
+								<td class="px-4 py-3 text-slate-600"><a href={ templ.SafeURL("/invoices/" + s.ID.String()) } class="hover:underline">{ dateText(s.IssueDate) }</a></td>
+								<td class="px-4 py-3 font-medium text-slate-900">{ s.CustomerName }</td>
+								<td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{ s.Status.Label() }</span></td>
+								<td class="hidden px-4 py-3 text-slate-600 sm:table-cell">{ dateTextPtr(s.DueDate) }</td>
+								<td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(s.Payable) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="mt-3 flex items-center justify-between text-sm text-slate-600">
+				<span>{ fmt.Sprint(l.Total) } fatura</span>
+				if l.PageCount > 1 {
+					<div class="flex items-center gap-2">
+						if l.Page > 1 {
+							<a href={ templ.SafeURL(invoicePageHref(l, l.Page-1)) } hx-get={ invoicePageHref(l, l.Page-1) } hx-target="#invoice-list" hx-push-url="true" class={ btnSecondary }>← Önceki</a>
+						}
+						<span>{ fmt.Sprint(l.Page) } / { fmt.Sprint(l.PageCount) }</span>
+						if l.Page < l.PageCount {
+							<a href={ templ.SafeURL(invoicePageHref(l, l.Page+1)) } hx-get={ invoicePageHref(l, l.Page+1) } hx-target="#invoice-list" hx-push-url="true" class={ btnSecondary }>Sonraki →</a>
+						}
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+func invoiceFormAction(f InvoiceForm) string {
+	if f.ID == "" {
+		return "/invoices"
+	}
+	return "/invoices/" + f.ID
+}
+
+templ InvoiceFormPage(p PageData, f InvoiceForm) {
+	@Layout(p) {
+		<form
+			method="post"
+			action={ templ.SafeURL(invoiceFormAction(f)) }
+			class="space-y-5"
+			x-data={ alpineData(f) }
+			hx-post="/invoices/preview"
+			hx-target="#totals"
+			hx-trigger="input delay:300ms, recalc, load"
+		>
+			if f.Saved {
+				<div class="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">Taslak kaydedildi.</div>
+			}
+			if len(f.Errors) > 0 {
+				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
+			}
+			<div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
+				<div class="sm:col-span-3">
+					<label for="customer_id" class="block text-sm font-medium text-slate-700">Müşteri</label>
+					<select id="customer_id" name="customer_id" class={ inputClass }>
+						<option value="">Müşteri seçin…</option>
+						for _, c := range f.Customers {
+							<option value={ c.ID.String() } selected?={ c.ID.String() == f.CustomerID }>{ c.Name } ({ c.TaxID })</option>
+						}
+					</select>
+					if f.Errors["customer_id"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["customer_id"] }</p>
+					}
+					if len(f.Customers) == 0 {
+						<p class="mt-1 text-xs text-amber-700">Önce <a href="/customers/new" class="underline">bir müşteri ekleyin</a>.</p>
+					}
+				</div>
+				<div>
+					<label for="issue_date" class="block text-sm font-medium text-slate-700">Fatura tarihi</label>
+					<input id="issue_date" name="issue_date" type="date" value={ f.IssueDate } class={ inputClass }/>
+					if f.Errors["issue_date"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["issue_date"] }</p>
+					}
+				</div>
+				<div>
+					<label for="due_date" class="block text-sm font-medium text-slate-700">Vade tarihi (isteğe bağlı)</label>
+					<input id="due_date" name="due_date" type="date" value={ f.DueDate } class={ inputClass }/>
+					if f.Errors["due_date"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["due_date"] }</p>
+					}
+				</div>
+				<div class="sm:col-span-3">
+					<label for="notes" class="block text-sm font-medium text-slate-700">Fatura notu</label>
+					<textarea id="notes" name="notes" rows="2" class={ inputClass }>{ f.Notes }</textarea>
+				</div>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="text-sm font-semibold text-slate-900">Kalemler</h2>
+					<button type="button" class={ btnSecondary } @click="add()">+ Kalem ekle</button>
+				</div>
+				if f.Errors["lines"] != "" {
+					<p class="mb-2 text-sm text-red-600">{ f.Errors["lines"] }</p>
+				}
+				for i := range f.Rows {
+					if f.Errors[fmt.Sprintf("line_%d", i)] != "" {
+						<p class="mb-1 text-sm text-red-600">{ f.Errors[fmt.Sprintf("line_%d", i)] }</p>
+					}
+				}
+				<div class="overflow-x-auto">
+					<table class="min-w-full text-sm">
+						<thead class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+							<tr>
+								<th class="pb-2 pr-2">Ürün</th>
+								<th class="pb-2 pr-2">Açıklama</th>
+								<th class="pb-2 pr-2">Birim</th>
+								<th class="pb-2 pr-2">Miktar</th>
+								<th class="pb-2 pr-2">Birim fiyat ₺</th>
+								<th class="pb-2 pr-2">İndirim ₺</th>
+								<th class="pb-2 pr-2">KDV</th>
+								<th class="pb-2"></th>
+							</tr>
+						</thead>
+						<tbody>
+							<template x-for="(r, i) in rows" :key="r.key">
+								<tr class="align-top">
+									<td class="pb-2 pr-2">
+										<select name="line_product" x-model="r.product" @change="pick(r)" class="w-40 rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+											<option value="">Elle gir</option>
+											for _, pr := range f.Products {
+												<option value={ pr.ID.String() }>{ pr.Name }</option>
+											}
+										</select>
+									</td>
+									<td class="pb-2 pr-2"><input name="line_name" x-model="r.name" class="w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm"/></td>
+									<td class="pb-2 pr-2">
+										<select name="line_unit" x-model="r.unit" class="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+											for _, u := range product.Units {
+												<option value={ u.Code }>{ u.Label }</option>
+											}
+										</select>
+									</td>
+									<td class="pb-2 pr-2"><input name="line_qty" x-model="r.qty" inputmode="decimal" class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"/></td>
+									<td class="pb-2 pr-2"><input name="line_price" x-model="r.price" inputmode="decimal" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"/></td>
+									<td class="pb-2 pr-2"><input name="line_discount" x-model="r.discount" inputmode="decimal" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"/></td>
+									<td class="pb-2 pr-2">
+										<select name="line_tax" x-model="r.tax" class="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+											for _, v := range product.TaxPercents {
+												<option value={ fmt.Sprint(v) }>%{ fmt.Sprint(v) }</option>
+											}
+										</select>
+									</td>
+									<td class="pb-2"><button type="button" class="rounded px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-red-600" aria-label="Kalemi sil" @click="remove(i)">✕</button></td>
+								</tr>
+							</template>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+				<h2 class="mb-2 text-sm font-semibold text-slate-900">Toplamlar</h2>
+				<div id="totals">
+					@InvoiceTotals(f.Totals, f.TotalsErr)
+				</div>
+			</div>
+			<div class="flex flex-wrap gap-3">
+				<button type="submit" class={ btnPrimary }>Taslağı kaydet</button>
+				<a href="/invoices" class={ btnSecondary }>Listeye dön</a>
+			</div>
+		</form>
+		if f.ID != "" {
+			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/delete") } class="mt-4" onsubmit="return confirm('Bu taslak silinsin mi?')">
+				<button type="submit" class="text-sm text-red-600 hover:underline">Taslağı sil</button>
+			</form>
+		}
+	}
+}
+
+// InvoiceTotals is the live totals box. It is rendered by the server from the same InvoiceCalculator that is used
+// when the invoice is saved: the browser never calculates amounts.
+templ InvoiceTotals(t *invoice.Totals, errMsg string) {
+	if errMsg != "" {
+		<p class="text-sm text-slate-500">{ errMsg }</p>
+	} else if t != nil {
+		<dl class="ml-auto max-w-sm space-y-1 text-sm">
+			<div class="flex justify-between"><dt class="text-slate-500">Mal/hizmet toplamı</dt><dd class="tabular-nums">{ money.FormatTL(t.LineExtension) }</dd></div>
+			if t.Allowance > 0 {
+				<div class="flex justify-between"><dt class="text-slate-500">İndirim</dt><dd class="tabular-nums">-{ money.FormatTL(t.Allowance) }</dd></div>
+			}
+			<div class="flex justify-between"><dt class="text-slate-500">KDV hariç toplam</dt><dd class="tabular-nums">{ money.FormatTL(t.TaxExclusive) }</dd></div>
+			for _, g := range t.TaxGroups {
+				<div class="flex justify-between"><dt class="text-slate-500">KDV %{ fmt.Sprint(g.Percent) } (matrah { money.FormatTL(g.Taxable) })</dt><dd class="tabular-nums">{ money.FormatTL(g.Tax) }</dd></div>
+			}
+			<div class="flex justify-between"><dt class="text-slate-500">Toplam KDV</dt><dd class="tabular-nums">{ money.FormatTL(t.TotalTax) }</dd></div>
+			<div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><dt>Ödenecek tutar</dt><dd class="tabular-nums">{ money.FormatTL(t.Payable) }</dd></div>
+		</dl>
+	} else {
+		<p class="text-sm text-slate-500">Kalem ekleyin.</p>
+	}
+}

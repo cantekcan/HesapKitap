@@ -31,6 +31,43 @@ type Customer struct {
 	UpdatedAt         pgtype.Timestamptz
 }
 
+type Invoice struct {
+	ID         uuid.UUID
+	Status     string
+	CustomerID uuid.UUID
+	IssueDate  pgtype.Date
+	DueDate    pgtype.Date
+	Notes      string
+	Payable    int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
+type InvoiceLine struct {
+	ID            uuid.UUID
+	InvoiceID     uuid.UUID
+	Position      int32
+	ProductID     uuid.NullUUID
+	ItemName      string
+	Unit          string
+	QuantityMilli int64
+	UnitPrice     int64
+	Discount      int64
+	TaxPercent    int32
+}
+
+type Product struct {
+	ID         uuid.UUID
+	Code       string
+	Name       string
+	Unit       string
+	UnitPrice  int64
+	TaxPercent int32
+	Active     bool
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type Session struct {
 	Token  string
 	Data   []byte

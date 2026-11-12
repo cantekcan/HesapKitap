@@ -21,6 +21,7 @@ import (
 	"hesapkitap/internal/platform/db/dbgen"
 	httpserver "hesapkitap/internal/platform/http"
 	"hesapkitap/internal/platform/queue"
+	"hesapkitap/internal/product"
 	"hesapkitap/internal/trendyol"
 )
 
@@ -56,6 +57,8 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 
 	handler, err := httpserver.New(httpserver.Deps{
 		Customers: &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider},
+		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
+		Invoices:  &invoice.Service{Store: db.NewInvoiceStore(pool)},
 		Logger:    log,
 		Pool:      pool,
 		Sessions:  auth.NewSessionManager(pool, cfg.IsProduction()),

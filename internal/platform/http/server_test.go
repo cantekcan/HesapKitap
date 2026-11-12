@@ -14,11 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"hesapkitap/internal/customer"
+	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/db"
 	"hesapkitap/internal/platform/db/dbgen"
 	"hesapkitap/internal/platform/db/dbtest"
 	httpserver "hesapkitap/internal/platform/http"
+	"hesapkitap/internal/product"
 )
 
 const (
@@ -53,6 +55,8 @@ func newTestApp(t *testing.T) *testApp {
 		Sessions:  auth.NewSessionManager(pool, false),
 		Auth:      svc,
 		Customers: &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: stubProvider{}},
+		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
+		Invoices:  &invoice.Service{Store: db.NewInvoiceStore(pool)},
 	})
 	require.NoError(t, err)
 
