@@ -79,7 +79,7 @@ templ ProductListFragment(l ProductList) {
 					</thead>
 					<tbody class="divide-y divide-slate-100">
 						for _, pr := range l.Items {
-							<tr class="hover:bg-slate-50">
+							<tr data-href={ "/products/" + pr.ID.String() }>
 								<td class="px-4 py-3">
 									<a href={ templ.SafeURL("/products/" + pr.ID.String()) } class="font-medium text-slate-900 hover:underline">{ pr.Name }</a>
 									if !pr.Active {

@@ -122,7 +122,7 @@ templ CustomerListFragment(l CustomerList) {
 					</thead>
 					<tbody class="divide-y divide-slate-100">
 						for _, c := range l.Items {
-							<tr class="hover:bg-slate-50">
+							<tr data-href={ "/customers/" + c.ID.String() }>
 								<td class="px-4 py-3">
 									<a href={ templ.SafeURL("/customers/" + c.ID.String()) } class="font-medium text-slate-900 hover:underline">{ c.Name }</a>
 									if !c.Active {

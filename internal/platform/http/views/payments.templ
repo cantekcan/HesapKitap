@@ -208,7 +208,7 @@ templ PaymentsPage(p PageData, l PaymentList) {
 				</thead>
 				<tbody class="divide-y divide-slate-100">
 					for _, it := range l.Items {
-						<tr>
+						<tr data-href={ "/customers/" + it.CustomerID.String() }>
 							<td class="px-4 py-2.5">{ dateText(it.Date) }</td>
 							<td class="px-4 py-2.5"><a class="underline" href={ templ.SafeURL("/customers/" + it.CustomerID.String()) }>{ it.CustomerName }</a></td>
 							<td class="px-4 py-2.5">{ it.Method.Label() }</td>

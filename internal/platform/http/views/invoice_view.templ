@@ -12,7 +12,6 @@ import (
 type InvoiceView struct {
 	Draft   invoice.Draft
 	Totals  invoice.Totals
-	CanCancel bool // kullanıcının iptal yetkisi var mı
 	Message string // kullanıcıya gösterilecek hata veya bilgi
 	Flash   string
 }
@@ -41,39 +40,44 @@ func providerStatusText(d invoice.Draft) string {
 templ InvoiceViewPage(p PageData, v InvoiceView) {
 	@Layout(p) {
 		@InvoiceStatusBox(v)
-		<div class="mt-5 card p-5">
-			<h2 class="mb-3 text-sm font-semibold text-slate-900">Kalemler</h2>
-			<div class="overflow-x-auto">
-				<table class="data-table">
-					<thead class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-						<tr>
-							<th class="pb-2 pr-3">Açıklama</th>
-							<th class="pb-2 pr-3 text-right">Miktar</th>
-							<th class="pb-2 pr-3 text-right">Birim fiyat</th>
-							<th class="pb-2 pr-3 text-right">İndirim</th>
-							<th class="pb-2 pr-3 text-right">KDV</th>
-							<th class="pb-2 text-right">Tutar (KDV dahil)</th>
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-slate-100">
-						for i, l := range v.Draft.Lines {
-							<tr>
-								<td class="py-2 pr-3">{ l.ItemName }</td>
-								<td class="py-2 pr-3 text-right tabular-nums">{ l.Quantity.String() } { product.UnitLabel(l.Unit) }</td>
-								<td class="py-2 pr-3 text-right tabular-nums">{ money.FormatTL(l.UnitPrice) }</td>
-								<td class="py-2 pr-3 text-right tabular-nums">{ money.FormatTL(l.Discount) }</td>
-								<td class="py-2 pr-3 text-right tabular-nums">%{ fmt.Sprint(l.TaxPercent) }</td>
-								<td class="py-2 text-right tabular-nums">{ money.FormatTL(v.Totals.Lines[i].Total) }</td>
-							</tr>
-						}
-					</tbody>
-				</table>
-			</div>
-			<div class="mt-4">
-				@InvoiceTotals(&v.Totals, "")
-			</div>
-		</div>
+		@InvoiceLinesCard(v.Draft, v.Totals)
 	}
+}
+
+// InvoiceLinesCard lists the lines and totals of an invoice (read-only).
+templ InvoiceLinesCard(d invoice.Draft, t invoice.Totals) {
+	<div class="mt-5 card p-5">
+		<h2 class="mb-3 text-sm font-semibold text-slate-900">Kalemler</h2>
+		<div class="overflow-x-auto">
+			<table class="data-table">
+				<thead class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+					<tr>
+						<th class="pb-2 pr-3">Açıklama</th>
+						<th class="pb-2 pr-3 text-right">Miktar</th>
+						<th class="pb-2 pr-3 text-right">Birim fiyat</th>
+						<th class="pb-2 pr-3 text-right">İndirim</th>
+						<th class="pb-2 pr-3 text-right">KDV</th>
+						<th class="pb-2 text-right">Tutar (KDV dahil)</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-100">
+					for i, l := range d.Lines {
+						<tr>
+							<td class="py-2 pr-3">{ l.ItemName }</td>
+							<td class="py-2 pr-3 text-right tabular-nums">{ l.Quantity.String() } { product.UnitLabel(l.Unit) }</td>
+							<td class="py-2 pr-3 text-right tabular-nums">{ money.FormatTL(l.UnitPrice) }</td>
+							<td class="py-2 pr-3 text-right tabular-nums">{ money.FormatTL(l.Discount) }</td>
+							<td class="py-2 pr-3 text-right tabular-nums">%{ fmt.Sprint(l.TaxPercent) }</td>
+							<td class="py-2 text-right tabular-nums">{ money.FormatTL(t.Lines[i].Total) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<div class="mt-4">
+			@InvoiceTotals(&t, "")
+		</div>
+	</div>
 }
 
 // InvoiceStatusBox shows status, numbers and actions. While the invoice is being sent it polls itself every 4 seconds.
@@ -116,11 +120,6 @@ templ InvoiceStatusBox(v InvoiceView) {
 			<div class="mt-4 flex flex-wrap items-center gap-3">
 				<a href={ templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/pdf") } target="_blank" rel="noopener" class={ btnPrimary }>PDF görüntüle</a>
 				<button type="button" hx-post={ "/invoices/" + v.Draft.ID.String() + "/share" } hx-target="#share-link" hx-swap="innerHTML" class={ btnSecondary }>Paylaşım bağlantısı</button>
-				if v.CanCancel && v.Draft.Status == invoice.StatusIssued && v.Draft.Kind == invoice.KindEArchive {
-					<form method="post" action={ templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/cancel") } @submit="if (!confirm('Bu e-Arşiv fatura iptal edilsin mi? İptal geri alınamaz.')) $event.preventDefault()">
-						<button type="submit" class="btn btn-danger">Faturayı iptal et</button>
-					</form>
-				}
 			</div>
 			<div id="share-link" class="mt-3 text-sm"></div>
 		}
@@ -139,5 +138,82 @@ templ ShareLink(link, errMsg string) {
 			<a href={ templ.SafeURL("mailto:?subject=" + templURLEscape("Faturanız") + "&body=" + templURLEscape("Faturanıza şu bağlantıdan ulaşabilirsiniz: "+link)) } class={ btnSecondary }>E-posta</a>
 			<span x-show="copied" x-cloak class="text-emerald-700">Kopyalandı</span>
 		</div>
+	}
+}
+
+// DraftReview is the read-only page of a saved draft: the place where the user approves (issues) the invoice.
+type DraftReview struct {
+	Draft     invoice.Draft
+	Totals    invoice.Totals
+	Flash     string
+	Error     string
+	CanEdit   bool
+	CanIssue  bool
+	CanDelete bool
+}
+
+templ DraftReviewPage(p PageData, v DraftReview) {
+	@Layout(p) {
+		if v.Flash != "" {
+			<div class="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ v.Flash }</div>
+		}
+		if v.Error != "" {
+			<div class="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ v.Error }</div>
+		}
+		<div class="card overflow-hidden">
+			<div class="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+				<span class="badge badge-amber">Taslak</span>
+				<span>Bu fatura henüz kesilmedi. Bilgileri kontrol edin; <strong>Onayla ve kes</strong> dediğinizde Trendyol E-Faturam'a gönderilir.</span>
+			</div>
+			<div class="grid gap-6 p-5 sm:grid-cols-3">
+				<div class="sm:col-span-2">
+					<dl class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+						<div><dt class="text-slate-500">Müşteri</dt><dd class="text-base font-semibold text-slate-900">{ v.Draft.CustomerName }</dd></div>
+						<div><dt class="text-slate-500">Fatura tarihi</dt><dd class="font-medium">{ dateText(v.Draft.IssueDate) }</dd></div>
+						<div><dt class="text-slate-500">Vade</dt><dd class="font-medium">{ dateTextPtr(v.Draft.DueDate) }</dd></div>
+						if v.Draft.Notes != "" {
+							<div class="sm:col-span-2"><dt class="text-slate-500">Not</dt><dd class="whitespace-pre-line">{ v.Draft.Notes }</dd></div>
+						}
+					</dl>
+				</div>
+				<div class="rounded-2xl bg-gradient-to-br from-brand-50 to-white p-4 ring-1 ring-inset ring-brand-100 sm:text-right">
+					<div class="text-xs font-semibold uppercase tracking-wide text-brand-700">Ödenecek tutar</div>
+					<div class="mt-1 text-3xl font-semibold tabular-nums text-slate-900">{ money.FormatTL(v.Totals.Payable) }</div>
+					<div class="mt-1 text-xs text-slate-500">KDV dahil</div>
+				</div>
+			</div>
+			<div class="flex flex-wrap items-center gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+				if v.CanIssue {
+					@ConfirmAction(Confirm{
+						Action: "/invoices/" + v.Draft.ID.String() + "/issue", Button: "Onayla ve faturayı kes", ButtonClass: btnPrimary,
+						Title:   "Fatura kesilsin mi?",
+						Message: "Taslak onaylanınca Trendyol E-Faturam'a gönderilir ve resmî fatura oluşur.",
+						Details: [][2]string{{"Müşteri", v.Draft.CustomerName}, {"Fatura tarihi", dateText(v.Draft.IssueDate)}, {"Ödenecek tutar", money.FormatTL(v.Totals.Payable)}},
+						Ack:     "Kesilen faturanın değiştirilemeyeceğini ve silinemeyeceğini anlıyorum.",
+						Yes:     "Evet, faturayı kes",
+					})
+				}
+				<a href={ templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/preview.pdf") } target="_blank" rel="noopener" class={ btnSecondary }>
+					@Icon("printer")
+					PDF önizleme
+				</a>
+				if v.CanEdit {
+					<a href={ templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/edit") } class={ btnSecondary }>Düzenle</a>
+				}
+				<a href="/invoices" class="text-sm text-slate-500 hover:text-slate-800 hover:underline">Listeye dön</a>
+				if v.CanDelete {
+					<div class="ml-auto">
+						@ConfirmAction(Confirm{
+							Action: "/invoices/" + v.Draft.ID.String() + "/delete", Button: "Taslağı sil", ButtonClass: "btn btn-danger",
+							Title:   "Taslak silinsin mi?",
+							Message: "Bu taslak kalıcı olarak silinir. Henüz kesilmediği için resmî bir kayıt etkilenmez.",
+							Details: [][2]string{{"Müşteri", v.Draft.CustomerName}, {"Ödenecek tutar", money.FormatTL(v.Totals.Payable)}},
+							Yes:     "Evet, sil", Danger: true,
+						})
+					</div>
+				}
+			</div>
+		</div>
+		@InvoiceLinesCard(v.Draft, v.Totals)
 	}
 }

@@ -30,7 +30,7 @@ type PermInfo struct {
 var AllPermissions = []PermInfo{
 	{PermInvoiceDraft, "Fatura taslağı oluştur / düzenle", "Faturalar", true},
 	{PermInvoiceIssue, "Faturayı kes (Trendyol'a gönder)", "Faturalar", false},
-	{PermInvoiceCancel, "Faturayı iptal et", "Faturalar", false},
+	{PermInvoiceCancel, "Faturayı iptal et (arayüzde şimdilik kapalı)", "Faturalar", false},
 	{PermInvoiceDelete, "Taslak faturayı sil", "Faturalar", false},
 	{PermPaymentCreate, "Tahsilat gir", "Tahsilat", true},
 	{PermPaymentDelete, "Tahsilat sil", "Tahsilat", false},

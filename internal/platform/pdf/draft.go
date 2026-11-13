@@ -20,60 +20,55 @@ import (
 // Go yazı tipi Türkçe harfleri (ğ ş ı İ ö ü ç) içerir; ₺ işareti içermediği için tutarlar "TL" ile yazılır.
 const (
 	fontName = "Go"
-	marginX  = 15.0
+	marginX  = 10.0
 	pageW    = 210.0
 	contentW = pageW - 2*marginX
 )
 
+// Company is the seller block of the preview. All fields are optional.
+type Company struct {
+	Name, TaxID, TaxOffice, Address, City, Phone, Email string
+}
+
+// DraftData is everything the preview needs.
+type DraftData struct {
+	Draft    invoice.Draft
+	Customer customer.Customer
+	Totals   invoice.Totals
+	Seller   Company
+	EInvoice bool // true: e-Fatura, false: e-Arşiv
+	Now      time.Time
+}
+
 func tl(kurus int64) string { return money.Format(kurus) + " TL" }
 
-// DraftInvoice renders a draft invoice preview. It is clearly marked as a draft and is not a valid invoice.
-func DraftInvoice(d invoice.Draft, c customer.Customer, t invoice.Totals, now time.Time) ([]byte, error) {
+// DraftInvoice renders a draft invoice in the layout of the official GİB e-Arşiv / e-Fatura document,
+// marked "TASLAKTIR". It is a preview only and not a valid invoice.
+func DraftInvoice(in DraftData) ([]byte, error) {
 	p := fpdf.New("P", "mm", "A4", "")
 	p.AddUTF8FontFromBytes(fontName, "", goregular.TTF)
 	p.AddUTF8FontFromBytes(fontName, "B", gobold.TTF)
-	p.SetMargins(marginX, 15, marginX)
-	p.SetAutoPageBreak(true, 20)
+	p.SetMargins(marginX, 10, marginX)
+	p.SetAutoPageBreak(true, 18)
 	p.SetTitle("Fatura taslağı önizleme", true)
 	p.SetCreator("Hesap Kitap", true)
+	p.SetLineWidth(0.2)
 
 	p.SetFooterFunc(func() {
-		p.SetY(-14)
-		p.SetFont(fontName, "", 8)
+		p.SetY(-12)
+		p.SetFont(fontName, "", 7.5)
 		p.SetTextColor(120, 120, 120)
-		p.CellFormat(contentW/2, 5, "Hesap Kitap · taslak önizleme · "+now.Format("02.01.2006 15:04"), "", 0, "L", false, 0, "")
-		p.CellFormat(contentW/2, 5, fmt.Sprintf("Sayfa %d", p.PageNo()), "", 0, "R", false, 0, "")
+		p.CellFormat(contentW/2, 4, "Taslak önizleme · "+in.Now.Format("02.01.2006 15:04")+" · geçerli bir fatura değildir", "", 0, "L", false, 0, "")
+		p.CellFormat(contentW/2, 4, fmt.Sprintf("Sayfa %d", p.PageNo()), "", 0, "R", false, 0, "")
 	})
 	p.SetHeaderFunc(func() { watermark(p) })
 	p.AddPage()
 
-	// Başlık
-	p.SetTextColor(30, 27, 75)
-	p.SetFont(fontName, "B", 18)
-	p.CellFormat(contentW, 9, "FATURA TASLAĞI", "", 1, "L", false, 0, "")
-	p.SetFont(fontName, "", 9)
-	p.SetTextColor(150, 60, 60)
-	p.CellFormat(contentW, 5, "Önizleme: bu belge geçerli bir e-Arşiv / e-Fatura değildir; fatura kesilince Trendyol'dan gelen PDF geçerlidir.", "", 1, "L", false, 0, "")
-	p.Ln(4)
-
-	// Alıcı ve tarih bilgileri
-	top := p.GetY()
-	p.SetTextColor(0, 0, 0)
-	box(p, marginX, top, contentW*0.62, "ALICI", receiverLines(c, d))
-	box(p, marginX+contentW*0.64, top, contentW*0.36, "FATURA BİLGİSİ", infoLines(d))
-	p.SetY(top + 42)
-
-	lineTable(p, d, t)
-	totals(p, t)
-
-	if n := strings.TrimSpace(d.Notes); n != "" {
-		p.Ln(6)
-		p.SetFont(fontName, "B", 9)
-		p.SetTextColor(60, 60, 60)
-		p.CellFormat(contentW, 5, "Not", "", 1, "L", false, 0, "")
-		p.SetFont(fontName, "", 9)
-		p.MultiCell(contentW, 4.5, n, "", "L", false)
-	}
+	header(p, in)
+	buyerAndInfo(p, in)
+	lineTable(p, in.Draft, in.Totals)
+	totalsBox(p, in.Totals)
+	notesBox(p, in)
 
 	var buf bytes.Buffer
 	if err := p.Output(&buf); err != nil {
@@ -83,72 +78,163 @@ func DraftInvoice(d invoice.Draft, c customer.Customer, t invoice.Totals, now ti
 }
 
 func watermark(p *fpdf.Fpdf) {
-	p.SetFont(fontName, "B", 90)
-	p.SetTextColor(238, 238, 244)
+	p.SetFont(fontName, "B", 96)
+	p.SetTextColor(250, 214, 214)
 	p.TransformBegin()
-	p.TransformRotate(40, pageW/2, 150)
-	p.Text(pageW/2-52, 160, "TASLAK")
+	p.TransformRotate(42, pageW/2, 160)
+	p.Text(pageW/2-62, 172, "TASLAKTIR")
 	p.TransformEnd()
 	p.SetTextColor(0, 0, 0)
 }
 
-func receiverLines(c customer.Customer, d invoice.Draft) []string {
+// header: satıcı bloğu solda, QR yeri ve belge türü sağda (resmi belgedeki yerleşim).
+func header(p *fpdf.Fpdf, in DraftData) {
+	top := p.GetY()
+	s := in.Seller
+	p.SetTextColor(0, 0, 0)
+	p.SetXY(marginX, top)
+	if strings.TrimSpace(s.Name) == "" {
+		p.SetFont(fontName, "", 8.5)
+		p.SetTextColor(150, 150, 150)
+		p.MultiCell(95, 4.2, "Satıcı bilgileri tanımlı değil.\n(.env: COMPANY_NAME, COMPANY_TAX_ID … ile ekleyebilirsiniz)", "", "L", false)
+	} else {
+		p.SetFont(fontName, "B", 9.5)
+		p.MultiCell(95, 4.6, s.Name, "", "L", false)
+		p.SetFont(fontName, "", 8.5)
+		for _, l := range sellerLines(s) {
+			p.SetX(marginX)
+			p.MultiCell(95, 4.1, l, "", "L", false)
+		}
+	}
+	sellerEnd := p.GetY()
+
+	// QR yeri (taslakta QR yok)
+	qx, qy, qs := pageW-marginX-30, top, 30.0
+	p.SetDrawColor(180, 180, 180)
+	p.SetDashPattern([]float64{1.2, 1.2}, 0)
+	p.Rect(qx, qy, qs, qs, "D")
+	p.SetDashPattern([]float64{}, 0)
+	p.SetFont(fontName, "", 6.5)
+	p.SetTextColor(150, 150, 150)
+	p.SetXY(qx, qy+qs/2-5)
+	p.MultiCell(qs, 3.4, "QR kod\nfatura kesilince\noluşur", "", "C", false)
+
+	p.SetFont(fontName, "B", 11)
+	p.SetTextColor(60, 60, 60)
+	p.SetXY(qx-5, qy+qs+1.5)
+	p.CellFormat(qs+5, 5, docTitle(in.EInvoice), "", 0, "C", false, 0, "")
+
+	p.SetY(max(sellerEnd, qy+qs+8) + 3)
+	p.SetDrawColor(0, 0, 0)
+	p.SetTextColor(0, 0, 0)
+	p.SetFont(fontName, "", 8)
+	p.CellFormat(contentW, 4.5, "ETTN: Fatura kesildiğinde atanır", "", 1, "L", false, 0, "")
+	p.Ln(1.5)
+}
+
+func docTitle(einvoice bool) string {
+	if einvoice {
+		return "e-Fatura"
+	}
+	return "e-Arşiv Fatura"
+}
+
+func sellerLines(s Company) []string {
+	var out []string
+	if s.Address != "" {
+		out = append(out, s.Address)
+	}
+	if s.City != "" {
+		out = append(out, s.City)
+	}
+	if s.Phone != "" {
+		out = append(out, "Tel: "+s.Phone)
+	}
+	if s.Email != "" {
+		out = append(out, "E-Posta: "+s.Email)
+	}
+	if s.TaxOffice != "" {
+		out = append(out, "Vergi Dairesi: "+s.TaxOffice)
+	}
+	if s.TaxID != "" {
+		out = append(out, "VKN: "+s.TaxID)
+	}
+	return out
+}
+
+func buyerAndInfo(p *fpdf.Fpdf, in DraftData) {
+	top := p.GetY()
+	c, d := in.Customer, in.Draft
+
+	// Alıcı (SAYIN) — çerçevesiz, resmi belgedeki gibi
+	p.SetXY(marginX, top)
+	p.SetFont(fontName, "B", 8.5)
+	p.CellFormat(95, 4.6, "SAYIN", "", 1, "L", false, 0, "")
 	name := c.Name
 	if name == "" {
 		name = d.CustomerName
 	}
-	lines := []string{name}
-	tax := c.TaxID
-	if c.Kind == customer.KindPerson {
-		tax = "TCKN: " + tax
-	} else {
-		tax = "VKN: " + tax
-		if c.TaxOffice != "" {
-			tax += " · " + c.TaxOffice + " V.D."
-		}
+	p.SetX(marginX)
+	p.SetFont(fontName, "B", 9.5)
+	p.MultiCell(98, 4.6, name, "", "L", false)
+	p.SetFont(fontName, "", 8.5)
+	for _, l := range receiverLines(c) {
+		p.SetX(marginX)
+		p.MultiCell(98, 4.1, l, "", "L", false)
 	}
-	lines = append(lines, tax)
+	buyerEnd := p.GetY()
+
+	// Fatura bilgileri tablosu
+	scenario := "EARSIVFATURA"
+	if in.EInvoice {
+		scenario = "TEMELFATURA"
+	}
+	rows := [][2]string{
+		{"Özelleştirme No", "TR1.2"},
+		{"Senaryo", scenario},
+		{"Fatura Tipi", "SATIS"},
+		{"Fatura No", "Kesildiğinde atanır"},
+		{"Fatura Tarihi", d.IssueDate.Format("02.01.2006")},
+	}
+	if d.DueDate != nil {
+		rows = append(rows, [2]string{"Vade Tarihi", d.DueDate.Format("02.01.2006")})
+	}
+	x, w, lw := pageW-marginX-72, 72.0, 27.0
+	y := top
+	for _, r := range rows {
+		p.SetXY(x, y)
+		p.SetFont(fontName, "B", 7.8)
+		p.CellFormat(lw, 5.2, r[0], "1", 0, "L", false, 0, "")
+		p.SetFont(fontName, "", 7.8)
+		p.CellFormat(w-lw, 5.2, r[1], "1", 0, "L", false, 0, "")
+		y += 5.2
+	}
+	p.SetY(max(buyerEnd, y) + 4)
+}
+
+func receiverLines(c customer.Customer) []string {
+	var lines []string
 	if c.Address != "" {
 		lines = append(lines, c.Address)
 	}
-	if loc := strings.TrimSpace(c.District + " / " + c.City); loc != "/" {
-		lines = append(lines, strings.Trim(loc, " /"))
-	}
-	if c.Email != "" {
-		lines = append(lines, c.Email)
+	if loc := strings.Trim(strings.TrimSpace(c.District+" / "+c.City), " /"); loc != "" {
+		lines = append(lines, loc)
 	}
 	if c.Phone != "" {
-		lines = append(lines, c.Phone)
+		lines = append(lines, "Tel: "+c.Phone)
 	}
-	return lines
-}
-
-func infoLines(d invoice.Draft) []string {
-	lines := []string{"Fatura tarihi: " + d.IssueDate.Format("02.01.2006")}
-	if d.DueDate != nil {
-		lines = append(lines, "Vade: "+d.DueDate.Format("02.01.2006"))
+	if c.Email != "" {
+		lines = append(lines, "E-Posta: "+c.Email)
 	}
-	return lines
-}
-
-func box(p *fpdf.Fpdf, x, y, w float64, title string, lines []string) {
-	p.SetDrawColor(220, 220, 230)
-	p.SetFillColor(248, 248, 252)
-	p.RoundedRect(x, y, w, 38, 2, "1234", "DF")
-	p.SetXY(x+3, y+2.5)
-	p.SetFont(fontName, "B", 8)
-	p.SetTextColor(99, 102, 241)
-	p.CellFormat(w-6, 4, title, "", 1, "L", false, 0, "")
-	for i, l := range lines {
-		p.SetX(x + 3)
-		if i == 0 && title == "ALICI" {
-			p.SetFont(fontName, "B", 10)
-		} else {
-			p.SetFont(fontName, "", 9)
+	if c.Kind == customer.KindPerson {
+		lines = append(lines, "TCKN: "+c.TaxID)
+	} else {
+		if c.TaxOffice != "" {
+			lines = append(lines, "Vergi Dairesi: "+c.TaxOffice)
 		}
-		p.SetTextColor(20, 20, 20)
-		p.MultiCell(w-6, 4.4, l, "", "L", false)
+		lines = append(lines, "VKN: "+c.TaxID)
 	}
+	return lines
 }
 
 func lineTable(p *fpdf.Fpdf, d invoice.Draft, t invoice.Totals) {
@@ -157,44 +243,44 @@ func lineTable(p *fpdf.Fpdf, d invoice.Draft, t invoice.Totals) {
 		w     float64
 		align string
 	}{
-		{"#", 8, "C"}, {"Açıklama", 62, "L"}, {"Miktar", 22, "R"}, {"Birim fiyat", 26, "R"}, {"İndirim", 20, "R"}, {"KDV", 12, "R"}, {"Tutar", 30, "R"},
+		{"Sıra No", 11, "C"}, {"Mal Hizmet", 56, "L"}, {"Miktar", 20, "R"}, {"Birim Fiyat", 23, "R"},
+		{"İskonto Tutarı", 22, "R"}, {"KDV Oranı", 14, "R"}, {"KDV Tutarı", 20, "R"}, {"Mal Hizmet Tutarı", 24, "R"},
 	}
-	p.SetFont(fontName, "B", 8.5)
-	p.SetFillColor(79, 70, 229)
-	p.SetTextColor(255, 255, 255)
-	p.SetDrawColor(79, 70, 229)
-	for _, c := range cols {
-		p.CellFormat(c.w, 7, c.title, "1", 0, c.align, true, 0, "")
+	head := func() {
+		p.SetFont(fontName, "B", 7.2)
+		p.SetFillColor(238, 238, 238)
+		p.SetDrawColor(0, 0, 0)
+		p.SetTextColor(0, 0, 0)
+		for _, c := range cols {
+			p.CellFormat(c.w, 7, c.title, "1", 0, "C", true, 0, "")
+		}
+		p.Ln(-1)
 	}
-	p.Ln(-1)
-
-	p.SetTextColor(20, 20, 20)
-	p.SetDrawColor(225, 225, 232)
-	p.SetFont(fontName, "", 9)
+	head()
+	p.SetFont(fontName, "", 8)
 	for i, l := range d.Lines {
 		res := t.Lines[i]
 		nameLines := p.SplitText(l.ItemName, cols[1].w-2)
-		h := float64(max(len(nameLines), 1)) * 4.6
-		if h < 7 {
-			h = 7
-		}
-		if p.GetY()+h > 297-25 {
+		h := max(float64(len(nameLines))*4.2+2, 7)
+		if p.GetY()+h > 297-22 {
 			p.AddPage()
+			head()
+			p.SetFont(fontName, "", 8)
 		}
 		x, y := p.GetX(), p.GetY()
 		vals := []string{
-			fmt.Sprint(i + 1), "", l.Quantity.String() + " " + product.UnitLabel(l.Unit), tl(l.UnitPrice), tl(l.Discount),
-			fmt.Sprintf("%%%d", l.TaxPercent), tl(res.Total),
+			fmt.Sprint(i + 1), "", l.Quantity.String() + " " + product.UnitLabel(l.Unit), tl(l.UnitPrice), tl(res.Discount),
+			fmt.Sprintf("%%%d", l.TaxPercent), tl(res.Tax), tl(res.Taxable),
 		}
 		cx := x
 		for ci, c := range cols {
 			p.Rect(cx, y, c.w, h, "D")
 			if ci == 1 {
-				p.SetXY(cx+1, y+1.2)
-				p.MultiCell(c.w-2, 4.6, l.ItemName, "", "L", false)
+				p.SetXY(cx+1, y+1)
+				p.MultiCell(c.w-2, 4.2, l.ItemName, "", "L", false)
 			} else {
-				p.SetXY(cx+1, y+(h-4.6)/2)
-				p.CellFormat(c.w-2, 4.6, vals[ci], "", 0, c.align, false, 0, "")
+				p.SetXY(cx+1, y+(h-4.2)/2)
+				p.CellFormat(c.w-2, 4.2, vals[ci], "", 0, c.align, false, 0, "")
 			}
 			cx += c.w
 		}
@@ -202,12 +288,12 @@ func lineTable(p *fpdf.Fpdf, d invoice.Draft, t invoice.Totals) {
 	}
 }
 
-func totals(p *fpdf.Fpdf, t invoice.Totals) {
-	p.Ln(5)
-	if p.GetY() > 297-70 {
+func totalsBox(p *fpdf.Fpdf, t invoice.Totals) {
+	p.Ln(4)
+	if p.GetY() > 297-75 {
 		p.AddPage()
 	}
-	labelW, valW := 52.0, 34.0
+	labelW, valW := 56.0, 30.0
 	x := marginX + contentW - labelW - valW
 	row := func(label, val string, bold bool) {
 		p.SetX(x)
@@ -215,23 +301,97 @@ func totals(p *fpdf.Fpdf, t invoice.Totals) {
 		if bold {
 			style = "B"
 		}
-		p.SetFont(fontName, style, 9.5)
-		p.CellFormat(labelW, 6, label, "", 0, "R", false, 0, "")
-		p.CellFormat(valW, 6, val, "", 1, "R", false, 0, "")
+		p.SetFont(fontName, style, 8.2)
+		p.CellFormat(labelW, 5.4, label, "1", 0, "R", false, 0, "")
+		p.CellFormat(valW, 5.4, val, "1", 1, "R", false, 0, "")
 	}
-	p.SetTextColor(40, 40, 40)
-	row("Mal/Hizmet toplamı", tl(t.LineExtension), false)
-	if t.Allowance > 0 {
-		row("Toplam indirim", "-"+tl(t.Allowance), false)
-	}
-	row("Matrah (KDV hariç)", tl(t.TaxExclusive), false)
+	p.SetTextColor(0, 0, 0)
+	row("Mal Hizmet Toplam Tutarı", tl(t.LineExtension), false)
+	row("Toplam İskonto", tl(t.Allowance), false)
 	for _, g := range t.TaxGroups {
-		row(fmt.Sprintf("KDV %%%d (matrah %s)", g.Percent, tl(g.Taxable)), tl(g.Tax), false)
+		row(fmt.Sprintf("Hesaplanan KDV (%%%d)", g.Percent), tl(g.Tax), false)
 	}
-	row("Toplam KDV", tl(t.TotalTax), false)
-	p.SetDrawColor(79, 70, 229)
-	p.Line(x, p.GetY()+1, x+labelW+valW, p.GetY()+1)
-	p.Ln(2)
-	p.SetTextColor(30, 27, 75)
-	row("ÖDENECEK TUTAR", tl(t.Payable), true)
+	row("Vergiler Dahil Toplam Tutar", tl(t.TaxInclusive), false)
+	row("Ödenecek Tutar", tl(t.Payable), true)
+}
+
+func notesBox(p *fpdf.Fpdf, in DraftData) {
+	p.Ln(5)
+	if p.GetY() > 297-40 {
+		p.AddPage()
+	}
+	text := "Yalnız: " + amountInWords(in.Totals.Payable)
+	if n := strings.TrimSpace(in.Draft.Notes); n != "" {
+		text += "\n" + n
+	}
+	x, y := p.GetX(), p.GetY()
+	p.SetFont(fontName, "", 8.5)
+	lines := p.SplitText(text, contentW-4)
+	h := float64(len(lines))*4.3 + 4
+	p.Rect(x, y, contentW, h, "D")
+	p.SetXY(x+2, y+2)
+	p.MultiCell(contentW-4, 4.3, text, "", "L", false)
+	p.SetXY(x, y+h)
+}
+
+var (
+	ones = []string{"", "BİR", "İKİ", "ÜÇ", "DÖRT", "BEŞ", "ALTI", "YEDİ", "SEKİZ", "DOKUZ"}
+	tens = []string{"", "ON", "YİRMİ", "OTUZ", "KIRK", "ELLİ", "ALTMIŞ", "YETMİŞ", "SEKSEN", "DOKSAN"}
+)
+
+// amountInWords writes a kuruş amount the way printed Turkish invoices do: "ÜÇ BİN OTUZ TL KIRK DÖRT Kr.".
+func amountInWords(kurus int64) string {
+	if kurus < 0 {
+		kurus = -kurus
+	}
+	lira, kr := kurus/100, kurus%100
+	parts := []string{}
+	if lira > 0 || kr == 0 {
+		w := numberWords(lira)
+		if w == "" {
+			w = "SIFIR"
+		}
+		parts = append(parts, w+" TL")
+	}
+	if kr > 0 {
+		parts = append(parts, numberWords(kr)+" Kr.")
+	}
+	return strings.Join(parts, " ")
+}
+
+// numberWords spells n (up to trilyon) in Turkish capitals; "bir" is dropped before yüz and bin.
+func numberWords(n int64) string {
+	if n == 0 {
+		return ""
+	}
+	scales := []struct {
+		v    int64
+		name string
+	}{{1_000_000_000_000, "TRİLYON"}, {1_000_000_000, "MİLYAR"}, {1_000_000, "MİLYON"}, {1000, "BİN"}}
+	var out []string
+	for _, s := range scales {
+		if n >= s.v {
+			q := n / s.v
+			n %= s.v
+			if s.v == 1000 && q == 1 {
+				out = append(out, s.name)
+			} else {
+				out = append(out, numberWords(q), s.name)
+			}
+		}
+	}
+	if h := n / 100; h > 0 {
+		if h > 1 {
+			out = append(out, ones[h])
+		}
+		out = append(out, "YÜZ")
+		n %= 100
+	}
+	if t := n / 10; t > 0 {
+		out = append(out, tens[t])
+	}
+	if o := n % 10; o > 0 {
+		out = append(out, ones[o])
+	}
+	return strings.Join(out, " ")
 }

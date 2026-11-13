@@ -37,6 +37,13 @@ type Config struct {
 	EInvoiceScenario string
 	// InvoicePrefix: portalda kullanılacak 3 karakterli fatura serisi (örn. ABC).
 	InvoicePrefix string
+	// Company: satıcı (firma) bilgileri; yalnızca taslak fatura PDF önizlemesinde görünür. Hepsi isteğe bağlı.
+	Company Company
+}
+
+// Company is the seller block printed on the draft invoice preview.
+type Company struct {
+	Name, TaxID, TaxOffice, Address, City, Phone, Email string
 }
 
 // IsProduction reports whether the process runs in production mode.
@@ -64,6 +71,10 @@ func Load(getenv func(string) string) (Config, error) {
 		EInvoiceEnabled:  get("EINVOICE_ENABLED", "false") == "true",
 		EInvoiceScenario: get("EINVOICE_SCENARIO", "TEMELFATURA"),
 		InvoicePrefix:    get("INVOICE_PREFIX", ""),
+		Company: Company{
+			Name: get("COMPANY_NAME", ""), TaxID: get("COMPANY_TAX_ID", ""), TaxOffice: get("COMPANY_TAX_OFFICE", ""),
+			Address: get("COMPANY_ADDRESS", ""), City: get("COMPANY_CITY", ""), Phone: get("COMPANY_PHONE", ""), Email: get("COMPANY_EMAIL", ""),
+		},
 	}
 
 	var errs []error

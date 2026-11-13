@@ -189,7 +189,7 @@ templ AgingReportPage(p PageData, a report.AgingReport) {
 				</thead>
 				<tbody>
 					for _, r := range a.Rows {
-						<tr>
+						<tr data-href={ "/customers/" + r.CustomerID.String() }>
 							<td class="px-4 py-2.5"><a href={ templ.SafeURL("/customers/" + r.CustomerID.String()) } class="font-medium hover:underline">{ r.Name }</a></td>
 							for _, v := range r.Buckets {
 								<td class="px-4 py-2.5 text-right tabular-nums">{ debitText(v) }</td>

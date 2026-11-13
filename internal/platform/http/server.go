@@ -24,6 +24,7 @@ import (
 	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
+	"hesapkitap/internal/platform/pdf"
 	"hesapkitap/internal/product"
 	"hesapkitap/internal/report"
 )
@@ -45,6 +46,7 @@ type Deps struct {
 	Ledger    ledger.Source
 	Reports   report.Source
 	Audit     audit.Store
+	Company   pdf.Company // taslak PDF önizlemede satıcı bloğu
 }
 
 type server struct {
@@ -66,10 +68,14 @@ func New(d Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	if css, err := fs.ReadFile(static, "app.css"); err == nil {
-		sum := sha256.Sum256(css)
-		views.AssetVersion = hex.EncodeToString(sum[:4])
+	// Önbellek kırma: css ve js içeriğinden türetilen sürüm.
+	assets := sha256.New()
+	for _, name := range []string{"app.css", "app.js"} {
+		if b, err := fs.ReadFile(static, name); err == nil {
+			assets.Write(b)
+		}
 	}
+	views.AssetVersion = hex.EncodeToString(assets.Sum(nil)[:4])
 
 	// Oturum gerektirmeyen, DB'ye dokunmayan uç noktalar.
 	root := http.NewServeMux()
@@ -116,6 +122,7 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "POST /invoices/preview", s.can(auth.PermInvoiceDraft, s.invoicePreview))
 	route(app, "POST /invoices", s.can(auth.PermInvoiceDraft, s.invoiceSave))
 	route(app, "GET /invoices/{id}", authed(s.invoiceShow))
+	route(app, "GET /invoices/{id}/edit", s.can(auth.PermInvoiceDraft, s.invoiceEdit))
 	route(app, "POST /invoices/{id}", s.can(auth.PermInvoiceDraft, s.invoiceSave))
 	route(app, "POST /invoices/{id}/delete", s.can(auth.PermInvoiceDelete, s.invoiceDelete))
 	route(app, "POST /invoices/{id}/issue", s.can(auth.PermInvoiceIssue, s.invoiceIssue))

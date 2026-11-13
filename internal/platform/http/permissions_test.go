@@ -64,7 +64,7 @@ func TestPermissionsLimitWhatAUserCanDo(t *testing.T) {
 
 	// Silme butonları ve menü öğeleri gizli
 	inv := u.get("/invoices/" + draftID)
-	assert.NotContains(t, inv.Body, "Faturayı Kes")
+	assert.NotContains(t, inv.Body, "Onayla ve faturayı kes")
 	assert.NotContains(t, inv.Body, "Taslağı sil")
 	assert.Contains(t, inv.Body, "PDF önizleme")
 	home := u.get("/")
@@ -128,4 +128,36 @@ func readyDraftFor(t *testing.T, a *testApp, custID string) string {
 		"line_product": {""}, "line_name": {"Danışmanlık hizmeti"}, "line_unit": {"HUR"}, "line_qty": {"2"},
 		"line_price": {"500,00"}, "line_discount": {""}, "line_tax": {"20"},
 	}, nil))
+}
+
+func TestDraftReviewApprovalAndClickableRows(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	custID := idFrom(t, a.do(http.MethodPost, "/customers", newCustomer("10000000146", "Ali Veli"), nil))
+	id := readyDraftFor(t, a, custID)
+
+	// Kayıttan sonra taslak inceleme sayfası: onay penceresi var, doğrudan form/kes düğmesi yok
+	page := a.get("/invoices/" + id + "?saved=1")
+	assert.Equal(t, http.StatusOK, page.Status)
+	assert.Contains(t, page.Body, "Taslak kaydedildi")
+	assert.Contains(t, page.Body, "Onayla ve faturayı kes")
+	assert.Contains(t, page.Body, "Fatura kesilsin mi?")
+	assert.Contains(t, page.Body, "anlıyorum", "onay kutusu zorunlu")
+	assert.Contains(t, page.Body, "Taslak silinsin mi?")
+	assert.NotContains(t, page.Body, "confirm(", "tarayıcı confirm penceresi kullanılmaz")
+
+	// Düzenleme formu ayrı adreste
+	edit := a.get("/invoices/" + id + "/edit")
+	assert.Equal(t, http.StatusOK, edit.Status)
+	assert.Contains(t, edit.Body, "Taslağı kaydet")
+
+	// Listede satırın tamamı tıklanabilir
+	assert.Contains(t, a.get("/invoices").Body, `data-href="/invoices/`+id+`"`)
+	assert.Contains(t, a.get("/customers").Body, `data-href="/customers/`+custID+`"`)
+
+	// Kesilen faturada iptal düğmesi yok
+	a.do(http.MethodPost, "/invoices/"+id+"/issue", url.Values{}, nil)
+	issued := a.get("/invoices/" + id)
+	assert.NotContains(t, issued.Body, "Faturayı iptal et")
+	assert.Equal(t, http.StatusSeeOther, a.get("/invoices/"+id+"/edit").Status, "kesilen fatura düzenlenemez")
 }

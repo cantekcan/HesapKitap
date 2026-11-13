@@ -21,6 +21,7 @@ import (
 	"hesapkitap/internal/platform/db"
 	"hesapkitap/internal/platform/db/dbgen"
 	httpserver "hesapkitap/internal/platform/http"
+	"hesapkitap/internal/platform/pdf"
 	"hesapkitap/internal/platform/queue"
 	"hesapkitap/internal/product"
 	"hesapkitap/internal/trendyol"
@@ -90,10 +91,12 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
 		Reports:   db.NewReportStore(dbgen.New(pool)),
 		Audit:     db.NewAuditStore(dbgen.New(pool)),
-		Logger:    log,
-		Pool:      pool,
-		Sessions:  auth.NewSessionManager(pool, cfg.IsProduction()),
-		Auth:      authSvc,
+		Company: pdf.Company{Name: cfg.Company.Name, TaxID: cfg.Company.TaxID, TaxOffice: cfg.Company.TaxOffice,
+			Address: cfg.Company.Address, City: cfg.Company.City, Phone: cfg.Company.Phone, Email: cfg.Company.Email},
+		Logger:   log,
+		Pool:     pool,
+		Sessions: auth.NewSessionManager(pool, cfg.IsProduction()),
+		Auth:     authSvc,
 	})
 	if err != nil {
 		return fmt.Errorf("http sunucusu kurulamadı: %w", err)

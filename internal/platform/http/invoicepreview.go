@@ -41,7 +41,10 @@ func (s *server) invoicePreviewPDF(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "müşteri okunamadı", err)
 		return
 	}
-	out, err := pdf.DraftInvoice(d, c, totals, time.Now().In(istanbul))
+	out, err := pdf.DraftInvoice(pdf.DraftData{
+		Draft: d, Customer: c, Totals: totals, Seller: s.Company, Now: time.Now().In(istanbul),
+		EInvoice: s.Invoices.Settings.EInvoiceEnabled && c.IsEInvoiceUser,
+	})
 	if err != nil {
 		s.serverError(w, r, "taslak PDF üretilemedi", err)
 		return

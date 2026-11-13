@@ -83,7 +83,45 @@ func (s *server) invoiceShow(w http.ResponseWriter, r *http.Request) {
 		s.invoiceView(w, r, d, "", flashFor(r), false)
 		return
 	}
-	s.renderDraft(w, r, d, d.LastError)
+	s.renderDraftReview(w, r, d, d.LastError, flashFor(r))
+}
+
+// invoiceEdit shows the draft form. Only drafts are editable; anything else goes to the read-only page.
+func (s *server) invoiceEdit(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	d, err := s.Invoices.Get(r.Context(), id)
+	if errors.Is(err, invoice.ErrNotFound) {
+		s.notFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, "fatura okunamadı", err)
+		return
+	}
+	if d.Status != invoice.StatusDraft {
+		http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid olarak ayrıştırıldı
+		return
+	}
+	s.renderDraft(w, r, d)
+}
+
+// renderDraftReview is the read-only draft page where the invoice is approved.
+func (s *server) renderDraftReview(w http.ResponseWriter, r *http.Request, d invoice.Draft, issueErr, flash string) {
+	t, err := d.Totals()
+	if err != nil {
+		s.serverError(w, r, "fatura toplamı hesaplanamadı", err)
+		return
+	}
+	me, _ := auth.CurrentUser(r.Context())
+	v := views.DraftReview{
+		Draft: d, Totals: t, Flash: strings.Replace(flash, "Kaydedildi.", "Taslak kaydedildi.", 1), Error: issueErr,
+		CanEdit: me.Can(auth.PermInvoiceDraft), CanIssue: me.Can(auth.PermInvoiceIssue), CanDelete: me.Can(auth.PermInvoiceDelete),
+	}
+	render(w, r, http.StatusOK, views.DraftReviewPage(s.pageData(r, "invoices", "Fatura taslağı"), v))
 }
 
 func flashFor(r *http.Request) string {
@@ -100,16 +138,12 @@ func (s *server) invoiceShowWithIssueError(w http.ResponseWriter, r *http.Reques
 		s.notFound(w, r)
 		return
 	}
-	s.renderDraft(w, r, d, msg)
+	s.renderDraftReview(w, r, d, msg, "")
 }
 
-func (s *server) renderDraft(w http.ResponseWriter, r *http.Request, d invoice.Draft, issueErr string) {
+func (s *server) renderDraft(w http.ResponseWriter, r *http.Request, d invoice.Draft) {
 	f := views.InvoiceForm{
-		ID: d.ID.String(), CustomerID: d.CustomerID.String(), IssueDate: d.IssueDate.Format(dateLayout),
-		Notes: d.Notes, Saved: r.URL.Query().Get("saved") == "1",
-	}
-	if issueErr != "" {
-		f.Errors = invoice.FieldErrors{"issue": issueErr}
+		ID: d.ID.String(), CustomerID: d.CustomerID.String(), IssueDate: d.IssueDate.Format(dateLayout), Notes: d.Notes,
 	}
 	if d.DueDate != nil {
 		f.DueDate = d.DueDate.Format(dateLayout)
@@ -333,8 +367,7 @@ func (s *server) invoiceView(w http.ResponseWriter, r *http.Request, d invoice.D
 		s.serverError(w, r, "fatura toplamı hesaplanamadı", err)
 		return
 	}
-	me, _ := auth.CurrentUser(r.Context())
-	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash, CanCancel: me.Can(auth.PermInvoiceCancel)}
+	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash}
 	if boxOnly {
 		render(w, r, http.StatusOK, views.InvoiceStatusBox(v))
 		return

@@ -247,8 +247,8 @@ func TestIssueRejectedByProviderReturnsToDraft(t *testing.T) {
 
 	page := a.get("/invoices/" + id)
 	assert.Contains(t, page.Body, "Alıcı adresi geçersiz")
-	assert.Contains(t, page.Body, "Faturayı Kes", "kesin red: taslağa dönülür, düzeltilip yeniden denenebilir")
-	assert.Contains(t, page.Body, "Taslağı kaydet")
+	assert.Contains(t, page.Body, "Onayla ve faturayı kes", "kesin red: taslağa dönülür, düzeltilip yeniden denenebilir")
+	assert.Contains(t, page.Body, "/invoices/"+id+"/edit")
 }
 
 func TestIssueWithoutProviderIsRefused(t *testing.T) {

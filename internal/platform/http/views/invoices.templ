@@ -46,7 +46,6 @@ type InvoiceForm struct {
 	Products   []product.Product
 	Totals     *invoice.Totals
 	TotalsErr  string
-	Saved      bool
 }
 
 func invoicePageHref(l InvoiceList, page int) string {
@@ -133,7 +132,7 @@ templ InvoiceListFragment(l InvoiceList) {
 					</thead>
 					<tbody class="divide-y divide-slate-100">
 						for _, s := range l.Items {
-							<tr class="hover:bg-slate-50">
+							<tr data-href={ "/invoices/" + s.ID.String() }>
 								<td class="px-4 py-3 text-slate-600"><a href={ templ.SafeURL("/invoices/" + s.ID.String()) } class="hover:underline">{ dateText(s.IssueDate) }</a></td>
 								<td class="px-4 py-3 font-medium text-slate-900">{ s.CustomerName }</td>
 								<td class="px-4 py-3"><span class={ statusBadgeClass(s.Status) }>{ s.Status.Label() }</span></td>
@@ -162,6 +161,13 @@ templ InvoiceListFragment(l InvoiceList) {
 	</div>
 }
 
+func invoiceFormCancel(f InvoiceForm) string {
+	if f.ID == "" {
+		return "/invoices"
+	}
+	return "/invoices/" + f.ID
+}
+
 func invoiceFormAction(f InvoiceForm) string {
 	if f.ID == "" {
 		return "/invoices"
@@ -180,12 +186,6 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 			hx-target="#totals"
 			hx-trigger="input delay:300ms, recalc, load"
 		>
-			if f.Saved {
-				<div class="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">Taslak kaydedildi.</div>
-			}
-			if f.Errors["issue"] != "" {
-				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ f.Errors["issue"] }</div>
-			}
 			if hasFieldErrors(f) {
 				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
 			}
@@ -297,29 +297,9 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 				if p.Can("invoice.draft") {
 					<button type="submit" class={ btnPrimary }>Taslağı kaydet</button>
 				}
-				if f.ID != "" {
-					<a href={ templ.SafeURL("/invoices/" + f.ID + "/preview.pdf") } target="_blank" rel="noopener" class={ btnSecondary }>
-						@Icon("printer")
-						PDF önizleme
-					</a>
-				}
-				<a href="/invoices" class={ btnSecondary }>Listeye dön</a>
+				<a href={ templ.SafeURL(invoiceFormCancel(f)) } class={ btnSecondary }>Vazgeç</a>
 			</div>
-			if f.ID != "" {
-				<p class="mt-2 text-xs text-slate-500">PDF önizleme son kaydettiğiniz taslağı gösterir; değişiklik yaptıysanız önce kaydedin.</p>
-			}
 		</form>
-		if f.ID != "" && p.Can("invoice.issue") {
-			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/issue") } class="mt-6 card p-5" @submit="if (!confirm('Fatura kesilsin mi? Kesildikten sonra değiştirilemez; hatalıysa yalnızca iptal veya iade faturası ile düzeltilir.')) $event.preventDefault()">
-				<p class="mb-3 text-sm text-slate-600">Kaydettiğiniz taslak Trendyol E-Faturam'a gönderilir. Önce değişiklikleri kaydedin.</p>
-				<button type="submit" class={ btnPrimary }>Faturayı Kes</button>
-			</form>
-		}
-		if f.ID != "" && p.Can("invoice.delete") {
-			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/delete") } class="mt-4" @submit="if (!confirm('Bu taslak silinsin mi?')) $event.preventDefault()">
-				<button type="submit" class="text-sm text-red-600 hover:underline">Taslağı sil</button>
-			</form>
-		}
 	}
 }
 

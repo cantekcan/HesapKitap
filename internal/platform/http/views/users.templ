@@ -62,7 +62,7 @@ templ UsersPage(p PageData, l UserList) {
 				<thead><tr><th class="px-4 py-3">Kullanıcı</th><th class="px-4 py-3">Rol</th><th class="px-4 py-3">Yetkiler</th><th class="px-4 py-3">Durum</th><th class="px-4 py-3"></th></tr></thead>
 				<tbody>
 					for _, u := range l.Users {
-						<tr>
+						<tr data-href={ "/users/" + u.ID.String() }>
 							<td class="px-4 py-3 font-medium">
 								{ u.Email }
 								if u.Email == l.Self {

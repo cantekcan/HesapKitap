@@ -1,4 +1,4 @@
-package pdf_test
+package pdf
 
 import (
 	"testing"
@@ -10,8 +10,24 @@ import (
 
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/invoice"
-	"hesapkitap/internal/platform/pdf"
 )
+
+func TestAmountInWords(t *testing.T) {
+	cases := map[int64]string{
+		0:            "SIFIR TL",
+		100:          "BİR TL",
+		303004:       "ÜÇ BİN OTUZ TL DÖRT Kr.",
+		100000:       "BİN TL",
+		123456:       "BİN İKİ YÜZ OTUZ DÖRT TL ELLİ ALTI Kr.",
+		250000_00:    "İKİ YÜZ ELLİ BİN TL",
+		1_000_000_0:  "YÜZ BİN TL",
+		5:            "BEŞ Kr.",
+		1_000_000_00: "BİR MİLYON TL",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, amountInWords(in), in)
+	}
+}
 
 func TestDraftInvoiceRendersPDFWithTurkishText(t *testing.T) {
 	d := invoice.Draft{
@@ -26,8 +42,10 @@ func TestDraftInvoiceRendersPDFWithTurkishText(t *testing.T) {
 	require.NoError(t, err)
 	c := customer.Customer{Name: "Çağrı Şişli Ltd.", Kind: customer.KindCompany, TaxID: "1234567890", City: "İstanbul"}
 
-	out, err := pdf.DraftInvoice(d, c, totals, time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC))
-	require.NoError(t, err)
-	assert.True(t, len(out) > 1000)
-	assert.Equal(t, "%PDF", string(out[:4]))
+	for _, seller := range []Company{{}, {Name: "Örnek Ticaret A.Ş.", TaxID: "9999999999", Address: "Atatürk Cd. No:1", City: "İstanbul"}} {
+		out, err := DraftInvoice(DraftData{Draft: d, Customer: c, Totals: totals, Seller: seller, Now: time.Now()})
+		require.NoError(t, err)
+		assert.Greater(t, len(out), 1000)
+		assert.Equal(t, "%PDF", string(out[:4]))
+	}
 }

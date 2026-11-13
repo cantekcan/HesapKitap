@@ -82,7 +82,22 @@
     @apply divide-y divide-slate-100;
   }
   .data-table tbody tr {
-    @apply transition-colors hover:bg-slate-50/60;
+    @apply transition-colors;
+  }
+  /* Satırın tamamı tıklanabilir (static/app.js): üzerine gelince belirgin renk ve sol vurgu */
+  .data-table tbody tr[data-href] {
+    @apply cursor-pointer;
+  }
+  .data-table tbody tr[data-href]:hover {
+    @apply bg-brand-50;
+    box-shadow: inset 3px 0 0 var(--color-brand-500);
+  }
+  .data-table tbody tr[data-href]:hover td:first-child a,
+  .data-table tbody tr[data-href]:hover td a:first-child {
+    @apply text-brand-700;
+  }
+  .data-table tbody tr[data-href]:active {
+    @apply bg-brand-100/70;
   }
 
   .badge {
