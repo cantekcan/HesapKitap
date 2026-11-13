@@ -17,7 +17,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"hesapkitap/internal/attachment"
 	"hesapkitap/internal/audit"
+	"hesapkitap/internal/cheque"
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
@@ -29,6 +31,7 @@ import (
 	"hesapkitap/internal/platform/pdf"
 	"hesapkitap/internal/product"
 	"hesapkitap/internal/report"
+	"hesapkitap/internal/supplier"
 )
 
 //go:embed static
@@ -41,16 +44,19 @@ type Deps struct {
 	Sessions *scs.SessionManager
 	Auth     *auth.Service
 
-	Customers *customer.Service
-	Products  *product.Service
-	Invoices  *invoice.Service
-	Payments  *payment.Service
-	Ledger    ledger.Source
-	Reports   report.Source
-	Audit     audit.Store
-	Company   pdf.Company       // taslak PDF önizlemede satıcı bloğu
-	Mailer    mail.Sender       // nil: e-posta gönderimi kapalı
-	Incoming  *incoming.Service // gelen e-Faturalar; Provider nil ise sayfa "bağlantı yok" der
+	Customers   *customer.Service
+	Products    *product.Service
+	Invoices    *invoice.Service
+	Payments    *payment.Service
+	Ledger      ledger.Source
+	Reports     report.Source
+	Audit       audit.Store
+	Company     pdf.Company // taslak PDF önizlemede satıcı bloğu
+	Mailer      mail.Sender // nil: e-posta gönderimi kapalı
+	Cheques     *cheque.Service
+	Suppliers   *supplier.Service
+	Attachments attachment.Store
+	Incoming    *incoming.Service // gelen e-Faturalar; Provider nil ise sayfa "bağlantı yok" der
 }
 
 type server struct {
@@ -148,6 +154,28 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "POST /payments", s.can(auth.PermPaymentCreate, s.paymentCreate))
 	route(app, "POST /payments/{id}/delete", s.can(auth.PermPaymentDelete, s.paymentDelete))
 	route(app, "GET /customers/{id}/statement", authed(s.customerStatement))
+	route(app, "GET /cheques", authed(s.chequeList))
+	route(app, "GET /cheques/own", s.can(auth.PermReportView, s.ownChequeList))
+	route(app, "GET /cheques/{id}", authed(s.chequeShow))
+	route(app, "POST /cheques/{id}/status", s.can(auth.PermChequeManage, s.chequeSetStatus))
+	route(app, "POST /cheques/{id}/endorse", s.can(auth.PermChequeManage, s.chequeEndorse))
+	route(app, "GET /suppliers", s.can(auth.PermReportView, s.supplierList))
+	route(app, "GET /suppliers/new", s.can(auth.PermSupplierWrite, s.supplierNew))
+	route(app, "POST /suppliers", s.can(auth.PermSupplierWrite, s.supplierCreate))
+	route(app, "GET /suppliers/{id}", s.can(auth.PermReportView, s.supplierShow))
+	route(app, "POST /suppliers/{id}", s.can(auth.PermSupplierWrite, s.supplierUpdate))
+	route(app, "POST /suppliers/{id}/entries", s.can(auth.PermSupplierWrite, s.supplierEntryAdd))
+	route(app, "POST /suppliers/{id}/payments", s.can(auth.PermSupplierWrite, s.supplierPaymentAdd))
+	route(app, "POST /suppliers/{id}/endorse", s.can(auth.PermChequeManage, s.supplierEndorse))
+	route(app, "POST /supplier-entries/{id}/delete", s.can(auth.PermSupplierWrite, s.supplierEntryDelete))
+	route(app, "POST /supplier-payments/{id}/delete", s.can(auth.PermSupplierWrite, s.supplierPaymentDelete))
+	route(app, "POST /supplier-payments/{id}/cleared", s.can(auth.PermSupplierWrite, s.supplierCleared))
+	route(app, "GET /attachments/panel", authed(s.attachmentPanel))
+	route(app, "POST /attachments", authed(s.attachmentUpload))
+	route(app, "GET /attachments/{id}", authed(s.attachmentGet))
+	route(app, "POST /attachments/{id}/delete", authed(s.attachmentDelete))
+	route(app, "GET /reports/cashflow", s.can(auth.PermReportView, s.reportCashflow))
+	route(app, "GET /reports/habits", s.can(auth.PermReportView, s.reportHabits))
 	route(app, "GET /users", s.adminOnly(s.userList))
 	route(app, "GET /users/new", s.adminOnly(s.userNew))
 	route(app, "POST /users", s.adminOnly(s.userCreate))

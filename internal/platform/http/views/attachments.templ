@@ -1,0 +1,124 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/attachment"
+)
+
+// AttachmentPanel is the data of the photo/document box of one record.
+type AttachmentPanel struct {
+	OwnerType string
+	OwnerID   string
+	Title     string
+	Items     []attachment.Meta
+	CanWrite  bool
+	Error     string
+}
+
+func attachmentPanelURL(ownerType, ownerID string) string {
+	return "/attachments/panel?type=" + ownerType + "&id=" + ownerID
+}
+
+func attachmentSize(n int) string {
+	if n >= 1<<20 {
+		return fmt.Sprintf("%.1f MB", float64(n)/float64(1<<20))
+	}
+	return fmt.Sprintf("%d KB", max(n/1024, 1))
+}
+
+// AttachButton opens the photo/document window of a record; n is the number of files already attached.
+templ AttachButton(ownerType, ownerID string, n int) {
+	<button
+		type="button"
+		class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-300 transition hover:bg-brand-50 hover:text-brand-700"
+		hx-get={ attachmentPanelURL(ownerType, ownerID) }
+		hx-target="#modal-root"
+		hx-swap="innerHTML"
+		title="Fotoğraf / belge"
+	>
+		<span class="[&>svg]:h-4 [&>svg]:w-4">
+			@Icon("paperclip")
+		</span>
+		if n > 0 {
+			<span class="tabular-nums">{ fmt.Sprint(n) }</span>
+		} else {
+			Belge
+		}
+	</button>
+}
+
+// AttachmentBox lists the files and, for those who may write, lets them add a photo (camera on a phone) or delete one.
+templ AttachmentBox(p AttachmentPanel) {
+	<div id="att-box">
+		if p.Error != "" {
+			<div class="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ p.Error }</div>
+		}
+		if len(p.Items) == 0 {
+			<p class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Henüz fotoğraf veya belge eklenmemiş.</p>
+		} else {
+			<ul class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+				for _, it := range p.Items {
+					<li class="group relative overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-slate-200">
+						<a href={ templ.SafeURL("/attachments/" + it.ID.String()) } target="_blank" rel="noopener" class="block">
+							if it.IsImage() {
+								<img src={ "/attachments/" + it.ID.String() } alt={ it.Filename } loading="lazy" class="h-32 w-full object-cover"/>
+							} else {
+								<div class="flex h-32 items-center justify-center text-slate-500">
+									<span class="[&>svg]:h-10 [&>svg]:w-10">
+										@Icon("document")
+									</span>
+								</div>
+							}
+							<div class="truncate px-2 py-1.5 text-xs text-slate-600" title={ it.Filename }>{ it.Filename }</div>
+						</a>
+						<div class="px-2 pb-1.5 text-[11px] text-slate-400">{ attachmentSize(it.Size) } · { dateText(it.CreatedAt.In(istanbulLoc)) }</div>
+						if p.CanWrite {
+							<button
+								type="button"
+								class="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-rose-700 shadow ring-1 ring-rose-200 hover:bg-rose-50"
+								hx-post={ "/attachments/" + it.ID.String() + "/delete" }
+								hx-target="#att-box"
+								hx-swap="outerHTML"
+								hx-confirm="Bu dosya silinsin mi?"
+							>Sil</button>
+						}
+					</li>
+				}
+			</ul>
+		}
+		if p.CanWrite {
+			<form
+				class="mt-4"
+				hx-post="/attachments"
+				hx-encoding="multipart/form-data"
+				hx-target="#att-box"
+				hx-swap="outerHTML"
+				hx-trigger="change"
+			>
+				<input type="hidden" name="type" value={ p.OwnerType }/>
+				<input type="hidden" name="id" value={ p.OwnerID }/>
+				<label class="btn btn-primary w-full cursor-pointer sm:w-auto">
+					@Icon("plus")
+					Fotoğraf çek / dosya seç
+					<input type="file" name="file" accept="image/*,application/pdf" class="sr-only"/>
+				</label>
+				<p class="mt-2 text-xs text-slate-500">Telefonda doğrudan kamera açılır. En fazla 10 MB; fotoğraf (JPEG, PNG, WebP, GIF) veya PDF.</p>
+			</form>
+		}
+	</div>
+}
+
+// AttachmentModal shows the box in a window over the current page.
+templ AttachmentModal(p AttachmentPanel) {
+	<div id="att-modal" x-data class="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true" @keydown.escape.window="$el.remove()">
+		<div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="$el.parentElement.remove()"></div>
+		<div class="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-900/5">
+			<div class="mb-4 flex items-start justify-between gap-4">
+				<h3 class="text-lg font-semibold text-slate-900">{ p.Title }</h3>
+				<button type="button" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" @click="$el.closest('#att-modal').remove()" aria-label="Kapat">✕</button>
+			</div>
+			@AttachmentBox(p)
+		</div>
+	</div>
+}

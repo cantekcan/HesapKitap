@@ -9,6 +9,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Attachment struct {
+	ID          uuid.UUID
+	OwnerType   string
+	OwnerID     uuid.UUID
+	Filename    string
+	ContentType string
+	Size        int32
+	Data        []byte
+	UploadedBy  string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type AuditLog struct {
 	ID       int64
 	At       pgtype.Timestamptz
@@ -17,6 +29,18 @@ type AuditLog struct {
 	Entity   string
 	EntityID string
 	Summary  string
+}
+
+type Cheque struct {
+	ID         uuid.UUID
+	PaymentID  uuid.UUID
+	Number     string
+	Bank       string
+	Drawer     string
+	DueDate    pgtype.Date
+	Status     string
+	StatusDate pgtype.Date
+	CreatedAt  pgtype.Timestamptz
 }
 
 type Customer struct {
@@ -102,6 +126,44 @@ type Session struct {
 	Token  string
 	Data   []byte
 	Expiry pgtype.Timestamptz
+}
+
+type Supplier struct {
+	ID             uuid.UUID
+	Name           string
+	TaxID          string
+	Phone          string
+	Note           string
+	OpeningBalance int64
+	Active         bool
+	CreatedAt      pgtype.Timestamptz
+}
+
+type SupplierEntry struct {
+	ID          uuid.UUID
+	SupplierID  uuid.UUID
+	EntryDate   pgtype.Date
+	Amount      int64
+	DocNo       string
+	Description string
+	DueDate     pgtype.Date
+	CreatedAt   pgtype.Timestamptz
+}
+
+type SupplierPayment struct {
+	ID           uuid.UUID
+	SupplierID   uuid.UUID
+	PaidAt       pgtype.Date
+	Amount       int64
+	Method       string
+	ChequeDue    pgtype.Date
+	ChequeNo     string
+	Bank         string
+	Cleared      bool
+	FromChequeID uuid.NullUUID
+	EntryID      uuid.NullUUID
+	Note         string
+	CreatedAt    pgtype.Timestamptz
 }
 
 type User struct {

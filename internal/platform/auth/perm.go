@@ -17,6 +17,8 @@ const (
 	PermAuditView     Permission = "audit.view"
 	PermDataImport    Permission = "data.import"
 	PermIncomingReply Permission = "incoming.reply"
+	PermChequeManage  Permission = "cheque.manage"
+	PermSupplierWrite Permission = "supplier.write"
 )
 
 // PermInfo describes a permission for the admin screen.
@@ -40,6 +42,8 @@ var AllPermissions = []PermInfo{
 	{PermDataImport, "Excel'den müşteri içe aktar", "Kayıtlar", false},
 	{PermReportView, "Pano, rapor, hatırlatma ve Excel dökümleri", "Raporlar", true},
 	{PermIncomingReply, "Gelen ticari faturaya kabul / ret yanıtı ver", "Faturalar", false},
+	{PermChequeManage, "Çek durumunu değiştir (tahsil / karşılıksız / ciro)", "Çek ve tedarikçi", false},
+	{PermSupplierWrite, "Tedarikçi, alım ve ödeme gir", "Çek ve tedarikçi", false},
 	{PermAuditView, "İşlem geçmişini gör", "Raporlar", false},
 }
 

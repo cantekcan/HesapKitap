@@ -34,6 +34,8 @@ templ ReportsHub(p PageData) {
 			@reportCard("Dönemsel satış", "Aylara ve KDV oranına göre kesilen faturalar. Mali müşavire gönderilecek liste.", "/reports/sales", "/reports/sales.xlsx", "chart")
 			@reportCard("Alacak yaşlandırma", "Kimin ne kadar borcu var, ne kadarı kaç gündür gecikmiş.", "/reports/aging", "/reports/aging.xlsx", "clock")
 			@reportCard("Tahsilat listesi", "Tarih aralığına göre alınan tüm tahsilatlar ve toplamı.", "/payments", "/payments.xlsx", "banknotes")
+			@reportCard("Çek takvimi ve nakit akışı", "Aylara göre girecek ve çıkacak çekler; alacak, borç ve net durum.", "/reports/cashflow", "", "ticket")
+			@reportCard("Müşteri ödeme alışkanlığı", "Kim ne kadar, hangi yöntemle ve ortalama kaç gün vadeli çekle ödüyor.", "/reports/habits", "", "users")
 			@reportCard("Müşteri listesi", "Tüm müşteriler, iletişim bilgileri ve güncel bakiyeleri.", "/customers", "/customers.xlsx", "users")
 		</div>
 		<p class="mt-6 text-sm text-slate-500">Müşteri ekstresi için müşteri sayfasındaki <span class="font-medium">Ekstre</span> düğmesini kullanın; oradan da Excel alabilirsiniz.</p>
@@ -49,10 +51,12 @@ templ reportCard(title, desc, href, xlsx, icon string) {
 		<p class="mt-1 flex-1 text-sm text-slate-500">{ desc }</p>
 		<div class="mt-4 flex gap-2">
 			<a href={ templ.SafeURL(href) } class="btn btn-primary btn-sm">Aç</a>
-			<a href={ templ.SafeURL(xlsx) } class="btn btn-secondary btn-sm">
-				@Icon("download")
-				Excel
-			</a>
+			if xlsx != "" {
+				<a href={ templ.SafeURL(xlsx) } class="btn btn-secondary btn-sm">
+					@Icon("download")
+					Excel
+				</a>
+			}
 		</div>
 	</div>
 }

@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/term"
 
+	"hesapkitap/internal/cheque"
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
@@ -26,6 +27,7 @@ import (
 	"hesapkitap/internal/platform/pdf"
 	"hesapkitap/internal/platform/queue"
 	"hesapkitap/internal/product"
+	"hesapkitap/internal/supplier"
 	"hesapkitap/internal/trendyol"
 )
 
@@ -92,15 +94,18 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		mailer = mail.NewSMTP(mc)
 	}
 	handler, err := httpserver.New(httpserver.Deps{
-		Mailer:    mailer,
-		Incoming:  &incoming.Service{Provider: incomingProvider},
-		Customers: customers,
-		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
-		Invoices:  invoices,
-		Payments:  &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
-		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
-		Reports:   db.NewReportStore(dbgen.New(pool)),
-		Audit:     db.NewAuditStore(dbgen.New(pool)),
+		Mailer:      mailer,
+		Incoming:    &incoming.Service{Provider: incomingProvider},
+		Customers:   customers,
+		Products:    &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
+		Invoices:    invoices,
+		Payments:    &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
+		Ledger:      db.NewLedgerStore(dbgen.New(pool)),
+		Reports:     db.NewReportStore(dbgen.New(pool)),
+		Audit:       db.NewAuditStore(dbgen.New(pool)),
+		Cheques:     &cheque.Service{Store: db.NewChequeStore(dbgen.New(pool))},
+		Suppliers:   &supplier.Service{Store: db.NewSupplierStore(pool)},
+		Attachments: db.NewAttachmentStore(dbgen.New(pool)),
 		Company: pdf.Company{Name: cfg.Company.Name, TaxID: cfg.Company.TaxID, TaxOffice: cfg.Company.TaxOffice,
 			Address: cfg.Company.Address, City: cfg.Company.City, Phone: cfg.Company.Phone, Email: cfg.Company.Email},
 		Logger:   log,

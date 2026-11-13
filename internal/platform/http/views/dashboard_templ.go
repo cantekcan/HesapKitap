@@ -602,7 +602,7 @@ func deltaClass(up bool) string {
 	return "text-rose-600"
 }
 
-func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, incomingOn, hasData bool) templ.Component {
+func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, incomingOn bool, cp ChequePanel, hasData bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -663,7 +663,13 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4\">")
+			if cp.Show {
+				templ_7745c5c3_Err = ChequeTiles(cp).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, " <div class=\"mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -686,7 +692,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var38 string
 				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(d.CustomerCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 96, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 99, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 				if templ_7745c5c3_Err != nil {
@@ -721,7 +727,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(d.OverdueCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 99, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 102, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -788,7 +794,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(d.CollectionRatio))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 113, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 116, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -832,7 +838,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/customers/" + x.CustomerID.String())).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 143, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 146, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 				if templ_7745c5c3_Err != nil {
@@ -845,7 +851,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(x.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 143, Col: 141}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 146, Col: 141}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {
@@ -858,7 +864,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var46 string
 				templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(x.Balance))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 144, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 147, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 				if templ_7745c5c3_Err != nil {
@@ -871,7 +877,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var47 string
 				templ_7745c5c3_Var47, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("width:" + widthPct(x.Balance, d.TopDebtors[0].Balance))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 147, Col: 117}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 150, Col: 117}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 				if templ_7745c5c3_Err != nil {
@@ -889,7 +895,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 					var templ_7745c5c3_Var48 string
 					templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(x.Overdue))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 150, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 153, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 					if templ_7745c5c3_Err != nil {
@@ -935,7 +941,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var49 string
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/invoices/" + a.ID.String())).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 170, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 173, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 				if templ_7745c5c3_Err != nil {
@@ -948,7 +954,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var50 string
 				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(a.Customer)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 170, Col: 129}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 173, Col: 129}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 				if templ_7745c5c3_Err != nil {
@@ -1001,7 +1007,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var53 string
 				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(a.Status.Label())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 171, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 174, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 				if templ_7745c5c3_Err != nil {
@@ -1014,7 +1020,7 @@ func Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inco
 				var templ_7745c5c3_Var54 string
 				templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(attentionText(a))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 173, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 176, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 				if templ_7745c5c3_Err != nil {
@@ -1100,7 +1106,7 @@ func agingBlock(a report.AgingReport) templ.Component {
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background:" + s.Color)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 213, Col: 129}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 216, Col: 129}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
@@ -1113,7 +1119,7 @@ func agingBlock(a report.AgingReport) templ.Component {
 				var templ_7745c5c3_Var57 string
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(s.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 213, Col: 148}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 216, Col: 148}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 				if templ_7745c5c3_Err != nil {
@@ -1126,7 +1132,7 @@ func agingBlock(a report.AgingReport) templ.Component {
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(s.Value))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 214, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/dashboard.templ`, Line: 217, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 				if templ_7745c5c3_Err != nil {

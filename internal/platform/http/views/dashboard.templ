@@ -74,7 +74,7 @@ func deltaClass(up bool) string {
 	return "text-rose-600"
 }
 
-templ Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, incomingOn, hasData bool) {
+templ Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, incomingOn bool, cp ChequePanel, hasData bool) {
 	@Layout(p) {
 		<div class="no-print mb-6 flex flex-wrap gap-3">
 			<a href="/invoices/new" class="btn btn-primary">
@@ -91,6 +91,9 @@ templ Dashboard(p PageData, d report.Dashboard, counts report.InvoiceCounts, inc
 			</a>
 		</div>
 		@InvoiceTiles(counts, incomingOn)
+		if cp.Show {
+			@ChequeTiles(cp)
+		}
 		<div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 			@kpi("Toplam alacak", money.FormatTL(d.Receivable), "bg-brand-50 text-brand-600", "banknotes") {
 				<div class="mt-1 text-xs text-slate-500">{ fmt.Sprint(d.CustomerCount) } aktif müşteri</div>

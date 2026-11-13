@@ -1,0 +1,442 @@
+package views
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	"hesapkitap/internal/cheque"
+	"hesapkitap/internal/money"
+	"hesapkitap/internal/supplier"
+)
+
+// SupplierList is the data of the suppliers page.
+type SupplierList struct {
+	Items    []supplier.Supplier
+	Query    string
+	Debt     int64 // toplam borcumuz
+	Pending  int64 // ödenecek kendi çeklerimiz
+	CanWrite bool
+}
+
+func supplierBalanceClass(b int64) string {
+	if b > 0 {
+		return "text-rose-600"
+	}
+	if b < 0 {
+		return "text-emerald-600"
+	}
+	return "text-slate-500"
+}
+
+templ SuppliersPage(p PageData, l SupplierList) {
+	@Layout(p) {
+		<div class="mb-5 grid gap-4 sm:grid-cols-2">
+			<div class="card p-5">
+				<div class="stat-label">Toplam borcumuz</div>
+				<div class={ "stat-value " + supplierBalanceClass(l.Debt) }>{ money.FormatTL(l.Debt) }</div>
+				<div class="text-xs text-slate-500">Tedarikçilere ödenmemiş alımlar (verdiğimiz çekler düşülmüş)</div>
+			</div>
+			<a href="/cheques/own" class="card p-5 transition hover:-translate-y-0.5 hover:shadow-md">
+				<div class="stat-label">Ödenecek çeklerimiz</div>
+				<div class="stat-value">{ money.FormatTL(l.Pending) }</div>
+				<div class="text-xs text-slate-500">Vadesi bekleyen kendi çeklerimiz →</div>
+			</a>
+		</div>
+		<div class="mb-4 flex flex-wrap items-center gap-3">
+			<form method="get" action="/suppliers" class="flex flex-1 items-center gap-2">
+				<input name="q" type="search" value={ l.Query } placeholder="Tedarikçi ara…" class="input !mt-0 sm:!w-80"/>
+				<button type="submit" class="btn btn-secondary">Ara</button>
+			</form>
+			if l.CanWrite {
+				<a href="/suppliers/new" class={ btnPrimary }>+ Yeni tedarikçi</a>
+			}
+		</div>
+		if len(l.Items) == 0 {
+			<div class="card border-dashed p-10 text-center text-slate-500">Henüz tedarikçi yok. “Yeni tedarikçi” ile toptancınızı ekleyin, sonra mal aldıkça borcunu girin.</div>
+		} else {
+			<div class="table-card overflow-x-auto">
+				<table class="data-table">
+					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<tr>
+							<th class="px-4 py-3">Tedarikçi</th>
+							<th class="hidden px-4 py-3 sm:table-cell">Telefon</th>
+							<th class="px-4 py-3 text-right">Borcumuz</th>
+							<th class="hidden px-4 py-3 text-right md:table-cell">Ödenecek çek</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						for _, s := range l.Items {
+							<tr data-href={ "/suppliers/" + s.ID.String() }>
+								<td class="px-4 py-3 font-medium text-slate-900">
+									<a href={ templ.SafeURL("/suppliers/" + s.ID.String()) } class="hover:underline">{ s.Name }</a>
+									if !s.Active {
+										<span class="ml-2 badge badge-slate">Pasif</span>
+									}
+								</td>
+								<td class="hidden px-4 py-3 text-slate-600 sm:table-cell">{ emailOrDash(s.Phone) }</td>
+								<td class={ "px-4 py-3 text-right font-medium tabular-nums " + supplierBalanceClass(s.Balance) }>{ money.FormatTL(s.Balance) }</td>
+								<td class="hidden px-4 py-3 text-right tabular-nums text-slate-600 md:table-cell">{ money.FormatTL(s.PendingCheques) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// SupplierForm is the new/edit supplier form.
+type SupplierForm struct {
+	ID       string
+	Name     string
+	TaxID    string
+	Phone    string
+	Note     string
+	Opening  string
+	Active   bool
+	Errors   supplier.FieldErrors
+	Saved    bool
+}
+
+templ supplierFields(f SupplierForm) {
+	<div class="grid gap-4 sm:grid-cols-2">
+		<div class="sm:col-span-2">
+			<label for="name" class="block text-sm font-medium text-slate-700">Tedarikçi adı</label>
+			<input id="name" name="name" value={ f.Name } required class={ inputClass }/>
+			if f.Errors["name"] != "" {
+				<p class="mt-1 text-sm text-red-600">{ f.Errors["name"] }</p>
+			}
+		</div>
+		<div>
+			<label for="tax_id" class="block text-sm font-medium text-slate-700">VKN / TCKN (isteğe bağlı)</label>
+			<input id="tax_id" name="tax_id" inputmode="numeric" value={ f.TaxID } class={ inputClass }/>
+			if f.Errors["tax_id"] != "" {
+				<p class="mt-1 text-sm text-red-600">{ f.Errors["tax_id"] }</p>
+			}
+		</div>
+		<div>
+			<label for="phone" class="block text-sm font-medium text-slate-700">Telefon</label>
+			<input id="phone" name="phone" value={ f.Phone } class={ inputClass }/>
+		</div>
+		<div>
+			<label for="opening_balance" class="block text-sm font-medium text-slate-700">Devreden borcumuz (₺)</label>
+			<input id="opening_balance" name="opening_balance" inputmode="decimal" value={ f.Opening } placeholder="0,00" class={ inputClass }/>
+			<p class="mt-1 text-xs text-slate-500">Sistemi kullanmaya başlarken tedarikçiye olan mevcut borcunuz. Alacaklıysanız eksi yazın.</p>
+			if f.Errors["opening_balance"] != "" {
+				<p class="mt-1 text-sm text-red-600">{ f.Errors["opening_balance"] }</p>
+			}
+		</div>
+		<div>
+			<label for="note" class="block text-sm font-medium text-slate-700">Not</label>
+			<input id="note" name="note" value={ f.Note } class={ inputClass }/>
+		</div>
+	</div>
+}
+
+templ SupplierNewPage(p PageData, f SupplierForm) {
+	@Layout(p) {
+		<form method="post" action="/suppliers" class="max-w-2xl space-y-4 card p-5">
+			if len(f.Errors) > 0 {
+				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
+			}
+			@supplierFields(f)
+			<div class="flex gap-3 pt-2">
+				<button type="submit" class={ btnPrimary }>Kaydet</button>
+				<a href="/suppliers" class={ btnSecondary }>Vazgeç</a>
+			</div>
+		</form>
+	}
+}
+
+// EntryForm and PayForm keep what the user typed so a bad entry can be shown again.
+type EntryForm struct {
+	Date, Amount, DocNo, Description, Due string
+	Errors                                supplier.FieldErrors
+}
+
+type PayForm struct {
+	Date, Amount, Method, ChequeDue, ChequeNo, Bank, EntryID, Note string
+	Errors                                                          supplier.FieldErrors
+}
+
+// SupplierView is the data of one supplier's page.
+type SupplierView struct {
+	S         supplier.Supplier
+	Form      SupplierForm
+	Rows      []supplier.Row
+	OpenItems []supplier.Entry // henüz tamamen ödenmemiş alımlar
+	Portfolio []cheque.Cheque  // ciro edilebilecek çekler
+	Entry     EntryForm
+	Pay       PayForm
+	Attach    map[uuid.UUID]int
+	CanWrite  bool
+	CanCheque bool
+	Message   string
+	Flash     string
+	Today     time.Time
+}
+
+func rowAttachType(r supplier.Row) string {
+	if r.Payment {
+		return "supplier_payment"
+	}
+	return "supplier_entry"
+}
+
+func openItemLabel(e supplier.Entry) string {
+	ref := e.DocNo
+	if ref == "" {
+		ref = "Alım"
+	}
+	return fmt.Sprintf("%s · %s — kalan %s", dateText(e.Date), ref, money.FormatTL(e.Amount-e.Paid))
+}
+
+func supplierRowDeleteConfirm(r supplier.Row, supplierID string) Confirm {
+	action := "/supplier-entries/" + r.ID.String() + "/delete"
+	msg := "Bu alım kaydı silinir; tedarikçi borcumuz buna göre azalır."
+	if r.Payment {
+		action = "/supplier-payments/" + r.ID.String() + "/delete"
+		msg = "Bu ödeme silinir; tedarikçi borcumuz buna göre artar."
+		if r.Method == supplier.MethodEndorsed {
+			msg += " Ciro edilen çek portföye geri döner."
+		}
+	}
+	return Confirm{
+		Action: action, Hidden: [][2]string{{"supplier_id", supplierID}}, Button: "Sil", ButtonClass: "text-xs text-red-700 underline",
+		Title: "Kayıt silinsin mi?", Message: msg, Yes: "Evet, sil", Danger: true,
+		Details: [][2]string{{"Tarih", dateText(r.Date)}, {"Tutar", money.FormatTL(r.Debit + r.Credit)}},
+	}
+}
+
+templ SupplierPage(p PageData, v SupplierView) {
+	@Layout(p) {
+		<div class="mb-4"><a href="/suppliers" class="text-sm text-slate-500 hover:text-slate-800">← Tedarikçilere dön</a></div>
+		if v.Flash != "" {
+			<div class="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ v.Flash }</div>
+		}
+		if v.Message != "" {
+			<div class="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ v.Message }</div>
+		}
+		<div class="grid gap-5 lg:grid-cols-3">
+			<div class="card p-5">
+				<h2 class="text-sm font-semibold text-slate-900">{ v.S.Name }</h2>
+				<div class={ "mt-2 text-3xl font-semibold tabular-nums " + supplierBalanceClass(v.S.Balance) }>{ money.FormatTL(v.S.Balance) }</div>
+				<div class="text-xs text-slate-500">
+					if v.S.Balance > 0 {
+						Tedarikçiye borcumuz var
+					} else if v.S.Balance < 0 {
+						Fazla ödeme var (tedarikçi bize borçlu)
+					} else {
+						Hesap kapalı
+					}
+				</div>
+				<dl class="mt-4 space-y-1 text-sm">
+					<div class="flex justify-between"><dt class="text-slate-500">Ödenecek çeklerimiz</dt><dd class="tabular-nums">{ money.FormatTL(v.S.PendingCheques) }</dd></div>
+					<div class="flex justify-between"><dt class="text-slate-500">Telefon</dt><dd>{ emailOrDash(v.S.Phone) }</dd></div>
+				</dl>
+				if v.CanWrite {
+					<details class="mt-4 text-sm">
+						<summary class="cursor-pointer font-medium text-brand-700">Bilgileri düzenle</summary>
+						<form method="post" action={ templ.SafeURL("/suppliers/" + v.S.ID.String()) } class="mt-3 space-y-3">
+							@supplierFields(v.Form)
+							<label class="flex items-center gap-2 text-sm text-slate-700">
+								<input type="checkbox" name="active" value="1" checked?={ v.Form.Active } class="h-4 w-4 rounded border-slate-300 text-brand-600"/>
+								Aktif
+							</label>
+							<button type="submit" class={ btnPrimary }>Kaydet</button>
+						</form>
+					</details>
+				}
+			</div>
+			if v.CanWrite {
+				<div class="card p-5">
+					<h2 class="card-title">Alım / borç ekle</h2>
+					<p class="mt-0.5 text-xs text-slate-500">Mal aldığınızda tutarı ve fatura/irsaliye numarasını girin.</p>
+					<form method="post" action={ templ.SafeURL("/suppliers/" + v.S.ID.String() + "/entries") } class="mt-3 space-y-3">
+						if len(v.Entry.Errors) > 0 {
+							<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
+						}
+						<div class="grid gap-3 sm:grid-cols-2">
+							<div>
+								<label for="entry_date" class="block text-xs font-medium text-slate-600">Tarih</label>
+								<input id="entry_date" name="entry_date" type="date" value={ v.Entry.Date } class={ inputClass }/>
+								if v.Entry.Errors["entry_date"] != "" {
+									<p class="mt-1 text-xs text-red-600">{ v.Entry.Errors["entry_date"] }</p>
+								}
+							</div>
+							<div>
+								<label for="entry_amount" class="block text-xs font-medium text-slate-600">Tutar (₺)</label>
+								<input id="entry_amount" name="amount" inputmode="decimal" value={ v.Entry.Amount } placeholder="1.234,56" class={ inputClass }/>
+								if v.Entry.Errors["amount"] != "" {
+									<p class="mt-1 text-xs text-red-600">{ v.Entry.Errors["amount"] }</p>
+								}
+							</div>
+						</div>
+						<div class="grid gap-3 sm:grid-cols-2">
+							<div>
+								<label for="doc_no" class="block text-xs font-medium text-slate-600">Fatura / irsaliye no</label>
+								<input id="doc_no" name="doc_no" value={ v.Entry.DocNo } class={ inputClass }/>
+							</div>
+							<div>
+								<label for="entry_due" class="block text-xs font-medium text-slate-600">Vade (isteğe bağlı)</label>
+								<input id="entry_due" name="due_date" type="date" value={ v.Entry.Due } class={ inputClass }/>
+								if v.Entry.Errors["due_date"] != "" {
+									<p class="mt-1 text-xs text-red-600">{ v.Entry.Errors["due_date"] }</p>
+								}
+							</div>
+						</div>
+						<div>
+							<label for="entry_desc" class="block text-xs font-medium text-slate-600">Açıklama</label>
+							<input id="entry_desc" name="description" value={ v.Entry.Description } class={ inputClass }/>
+							if v.Entry.Errors["description"] != "" {
+								<p class="mt-1 text-xs text-red-600">{ v.Entry.Errors["description"] }</p>
+							}
+						</div>
+						<button type="submit" class={ btnPrimary }>Alımı kaydet</button>
+					</form>
+				</div>
+				<div class="card p-5" x-data={ "{ method: " + jsonString(v.Pay.Method) + " }" }>
+					<h2 class="card-title">Ödeme ekle</h2>
+					<p class="mt-0.5 text-xs text-slate-500">Nakit, havale veya kendi çekinizi (vadeli) girin.</p>
+					<form method="post" action={ templ.SafeURL("/suppliers/" + v.S.ID.String() + "/payments") } class="mt-3 space-y-3">
+						if len(v.Pay.Errors) > 0 {
+							<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
+						}
+						<div class="grid gap-3 sm:grid-cols-2">
+							<div>
+								<label for="paid_at" class="block text-xs font-medium text-slate-600">Tarih</label>
+								<input id="paid_at" name="paid_at" type="date" value={ v.Pay.Date } class={ inputClass }/>
+								if v.Pay.Errors["paid_at"] != "" {
+									<p class="mt-1 text-xs text-red-600">{ v.Pay.Errors["paid_at"] }</p>
+								}
+							</div>
+							<div>
+								<label for="pay_amount" class="block text-xs font-medium text-slate-600">Tutar (₺)</label>
+								<input id="pay_amount" name="amount" inputmode="decimal" value={ v.Pay.Amount } placeholder="1.234,56" class={ inputClass }/>
+								if v.Pay.Errors["amount"] != "" {
+									<p class="mt-1 text-xs text-red-600">{ v.Pay.Errors["amount"] }</p>
+								}
+							</div>
+						</div>
+						<div>
+							<label for="pay_method" class="block text-xs font-medium text-slate-600">Yöntem</label>
+							<select id="pay_method" name="method" x-model="method" class={ inputClass }>
+								for _, m := range supplier.Methods {
+									<option value={ string(m) } selected?={ string(m) == v.Pay.Method }>{ m.Label() }</option>
+								}
+							</select>
+						</div>
+						<div x-show="method === 'CHEQUE' || method === 'NOTE'" x-cloak class="grid gap-3 rounded-xl bg-amber-50/60 p-3 ring-1 ring-inset ring-amber-200 sm:grid-cols-3">
+							<div>
+								<label for="cheque_due" class="block text-xs font-medium text-slate-600">Vade tarihi</label>
+								<input id="cheque_due" name="cheque_due" type="date" value={ v.Pay.ChequeDue } class={ inputClass }/>
+								if v.Pay.Errors["cheque_due"] != "" {
+									<p class="mt-1 text-xs text-red-600">{ v.Pay.Errors["cheque_due"] }</p>
+								}
+							</div>
+							<div>
+								<label for="cheque_no" class="block text-xs font-medium text-slate-600">Çek no</label>
+								<input id="cheque_no" name="cheque_no" value={ v.Pay.ChequeNo } class={ inputClass }/>
+							</div>
+							<div>
+								<label for="bank" class="block text-xs font-medium text-slate-600">Banka</label>
+								<input id="bank" name="bank" value={ v.Pay.Bank } class={ inputClass }/>
+							</div>
+						</div>
+						if len(v.OpenItems) > 0 {
+							<div>
+								<label for="pay_entry" class="block text-xs font-medium text-slate-600">Hangi alıma karşılık? (isteğe bağlı)</label>
+								<select id="pay_entry" name="entry_id" class={ inputClass }>
+									<option value="">Genel ödeme</option>
+									for _, e := range v.OpenItems {
+										<option value={ e.ID.String() } selected?={ e.ID.String() == v.Pay.EntryID }>{ openItemLabel(e) }</option>
+									}
+								</select>
+							</div>
+						}
+						<div>
+							<label for="pay_note" class="block text-xs font-medium text-slate-600">Açıklama</label>
+							<input id="pay_note" name="note" value={ v.Pay.Note } class={ inputClass }/>
+						</div>
+						<button type="submit" class={ btnPrimary }>Ödemeyi kaydet</button>
+					</form>
+				</div>
+			}
+		</div>
+		if v.CanCheque && len(v.Portfolio) > 0 {
+			<form method="post" action={ templ.SafeURL("/suppliers/" + v.S.ID.String() + "/endorse") } class="mt-5 card p-5">
+				<h2 class="card-title">Müşteri çeki ciro et</h2>
+				<p class="mt-0.5 text-xs text-slate-500">Elimizdeki bir müşteri çekini bu tedarikçiye ödeme olarak verin; çek tutarı kadar borcumuz düşer.</p>
+				<div class="mt-3 grid gap-3 sm:grid-cols-3">
+					<div class="sm:col-span-2">
+						<label for="cheque_id" class="block text-xs font-medium text-slate-600">Çek</label>
+						<select id="cheque_id" name="cheque_id" required class={ inputClass }>
+							<option value="">Seçin…</option>
+							for _, c := range v.Portfolio {
+								<option value={ c.ID.String() }>{ dateText(c.DueDate) } · { c.CustomerName } · { money.FormatTL(c.Amount) }</option>
+							}
+						</select>
+					</div>
+					<div>
+						<label for="endorse_note" class="block text-xs font-medium text-slate-600">Açıklama</label>
+						<input id="endorse_note" name="note" class={ inputClass }/>
+					</div>
+				</div>
+				<button type="submit" class="btn btn-secondary mt-3">Ciro et</button>
+			</form>
+		}
+		<h2 class="mb-2 mt-6 text-sm font-semibold text-slate-900">Hesap hareketleri</h2>
+		<div class="table-card overflow-x-auto">
+			<table class="data-table">
+				<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+					<tr>
+						<th class="px-4 py-3">Tarih</th>
+						<th class="px-4 py-3">Hareket</th>
+						<th class="px-4 py-3 text-right">Alım (borç)</th>
+						<th class="px-4 py-3 text-right">Ödeme</th>
+						<th class="px-4 py-3 text-right">Borcumuz</th>
+						<th class="px-4 py-3"></th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-100">
+					for _, r := range v.Rows {
+						<tr>
+							<td class="px-4 py-2.5">
+								if !r.Date.IsZero() {
+									{ dateText(r.Date) }
+								}
+							</td>
+							<td class="px-4 py-2.5">
+								{ r.Ref }
+								if r.Note != "" {
+									<span class="text-slate-500"> · { r.Note }</span>
+								}
+								if r.Method == supplier.MethodCheque && r.Cleared {
+									<span class="ml-1 badge badge-green">Hesaptan çıktı</span>
+								}
+							</td>
+							<td class="px-4 py-2.5 text-right tabular-nums">{ debitText(r.Debit) }</td>
+							<td class="px-4 py-2.5 text-right tabular-nums">{ debitText(r.Credit) }</td>
+							<td class={ "px-4 py-2.5 text-right font-medium tabular-nums " + supplierBalanceClass(r.Balance) }>{ money.FormatTL(r.Balance) }</td>
+							<td class="px-4 py-2.5 text-right">
+								if r.ID != uuid.Nil {
+									<div class="flex items-center justify-end gap-3">
+										@AttachButton(rowAttachType(r), r.ID.String(), v.Attach[r.ID])
+										if v.CanWrite {
+											@ConfirmAction(supplierRowDeleteConfirm(r, v.S.ID.String()))
+										}
+									</div>
+								}
+							</td>
+						</tr>
+					}
+					if len(v.Rows) == 0 {
+						<tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">Henüz alım veya ödeme girilmemiş.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}

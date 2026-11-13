@@ -55,6 +55,17 @@ func (m Method) Valid() bool {
 	return false
 }
 
+// HasTerm reports whether the method is a cheque or note, which carries a due date (vade).
+func (m Method) HasTerm() bool { return m == MethodCheque || m == MethodNote }
+
+// ChequeInfo describes the cheque/note received. Due is the date it can be cashed.
+type ChequeInfo struct {
+	Number string
+	Bank   string
+	Drawer string // keşideci
+	Due    time.Time
+}
+
 // Payment is money received from a customer. Amount is kuruş and always positive.
 type Payment struct {
 	ID           uuid.UUID
@@ -64,7 +75,8 @@ type Payment struct {
 	Amount       int64
 	Method       Method
 	Note         string
-	InvoiceID    *uuid.UUID // isteğe bağlı: bu faturaya mahsup
+	InvoiceID    *uuid.UUID  // isteğe bağlı: bu faturaya mahsup
+	Cheque       *ChequeInfo // yalnızca çek/senet tahsilatında
 }
 
 // FieldErrors maps a form field name to a Turkish message.
@@ -87,14 +99,31 @@ func (p Payment) Validate(today time.Time) FieldErrors {
 	if !p.Method.Valid() {
 		errs["method"] = "Ödeme yöntemi seçilmeli."
 	}
+	if p.Method.HasTerm() {
+		switch {
+		case p.Cheque == nil || p.Cheque.Due.IsZero():
+			errs["cheque_due"] = "Çek/senet için vade tarihi girilmeli."
+		case !p.Date.IsZero() && p.Cheque.Due.Before(p.Date):
+			errs["cheque_due"] = "Vade, tahsilat tarihinden önce olamaz."
+		case p.Cheque.Due.After(p.Date.AddDate(5, 0, 0)):
+			errs["cheque_due"] = "Vade en fazla 5 yıl sonra olabilir."
+		}
+		if p.Cheque != nil && (utf8.RuneCountInString(p.Cheque.Number) > 40 || utf8.RuneCountInString(p.Cheque.Bank) > 80 || utf8.RuneCountInString(p.Cheque.Drawer) > 120) {
+			errs["cheque_no"] = "Çek no, banka veya keşideci çok uzun."
+		}
+	}
 	if utf8.RuneCountInString(strings.TrimSpace(p.Note)) > 500 {
 		errs["note"] = "Açıklama en fazla 500 karakter olabilir."
 	}
 	return errs
 }
 
-// ErrNotFound is returned when the payment does not exist.
-var ErrNotFound = errors.New("tahsilat bulunamadı")
+// Errors.
+var (
+	ErrNotFound = errors.New("tahsilat bulunamadı")
+	// ErrInUse: tahsilattaki çek ciro edildiği için silinemez; önce tedarikçi ödemesi silinmeli.
+	ErrInUse = errors.New("bu tahsilatın çeki bir tedarikçiye ciro edilmiş; önce tedarikçideki ödemeyi silin")
+)
 
 // ListFilter selects a page of payments. From/To are inclusive dates (zero = open).
 type ListFilter struct {
@@ -130,8 +159,14 @@ func (s *Service) today() time.Time {
 // Create validates and stores a payment. Validation problems come back as FieldErrors.
 func (s *Service) Create(ctx context.Context, p Payment) (uuid.UUID, FieldErrors, error) {
 	p.Note = strings.TrimSpace(p.Note)
+	if p.Cheque != nil {
+		p.Cheque.Number, p.Cheque.Bank, p.Cheque.Drawer = strings.TrimSpace(p.Cheque.Number), strings.TrimSpace(p.Cheque.Bank), strings.TrimSpace(p.Cheque.Drawer)
+	}
 	if errs := p.Validate(s.today()); len(errs) > 0 {
 		return uuid.Nil, errs, nil
+	}
+	if !p.Method.HasTerm() {
+		p.Cheque = nil
 	}
 	id, err := s.Store.Create(ctx, p)
 	return id, nil, err

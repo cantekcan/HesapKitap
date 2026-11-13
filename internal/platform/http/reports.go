@@ -37,7 +37,7 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	render(w, r, http.StatusOK, views.Dashboard(s.pageData(r, "dashboard", "Pano"), d, counts, s.Incoming != nil && s.Incoming.Provider != nil, hasData))
+	render(w, r, http.StatusOK, views.Dashboard(s.pageData(r, "dashboard", "Pano"), d, counts, s.Incoming != nil && s.Incoming.Provider != nil, s.chequePanel(r.Context()), hasData))
 }
 
 func (s *server) reportsHub(w http.ResponseWriter, r *http.Request) {

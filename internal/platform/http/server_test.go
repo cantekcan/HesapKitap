@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"hesapkitap/internal/cheque"
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
@@ -24,6 +25,7 @@ import (
 	"hesapkitap/internal/platform/db/dbtest"
 	httpserver "hesapkitap/internal/platform/http"
 	"hesapkitap/internal/product"
+	"hesapkitap/internal/supplier"
 )
 
 const (
@@ -85,19 +87,22 @@ func newTestApp(t *testing.T) *testApp {
 	invoiceStore := db.NewInvoiceStore(pool, jobs)
 	invoices := &invoice.Service{Store: invoiceStore, Issues: invoiceStore, Provider: provider, Recipients: customers}
 	h, err := httpserver.New(httpserver.Deps{
-		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Pool:      pool,
-		Sessions:  auth.NewSessionManager(pool, false),
-		Auth:      svc,
-		Customers: customers,
-		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
-		Invoices:  invoices,
-		Payments:  &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
-		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
-		Reports:   db.NewReportStore(dbgen.New(pool)),
-		Audit:     db.NewAuditStore(dbgen.New(pool)),
-		Mailer:    mailer,
-		Incoming:  &incoming.Service{Provider: inc},
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Pool:        pool,
+		Sessions:    auth.NewSessionManager(pool, false),
+		Auth:        svc,
+		Customers:   customers,
+		Products:    &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
+		Invoices:    invoices,
+		Payments:    &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
+		Ledger:      db.NewLedgerStore(dbgen.New(pool)),
+		Reports:     db.NewReportStore(dbgen.New(pool)),
+		Audit:       db.NewAuditStore(dbgen.New(pool)),
+		Cheques:     &cheque.Service{Store: db.NewChequeStore(dbgen.New(pool))},
+		Suppliers:   &supplier.Service{Store: db.NewSupplierStore(pool)},
+		Attachments: db.NewAttachmentStore(dbgen.New(pool)),
+		Mailer:      mailer,
+		Incoming:    &incoming.Service{Provider: inc},
 	})
 	require.NoError(t, err)
 

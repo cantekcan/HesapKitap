@@ -3,6 +3,8 @@ package views
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/ledger"
 	"hesapkitap/internal/money"
@@ -19,6 +21,7 @@ type PaymentList struct {
 	PageCount int
 	Total     int
 	SumAll    int64 // süzgeçle eşleşen tahsilatların toplamı
+	Attach    map[uuid.UUID]int
 }
 
 // PaymentForm is the new payment page.
@@ -27,6 +30,10 @@ type PaymentForm struct {
 	Date       string
 	Amount     string
 	Method     string
+	ChequeDue  string
+	ChequeNo   string
+	Bank       string
+	Drawer     string
 	Note       string
 	InvoiceID  string
 	Errors     payment.FieldErrors
@@ -215,11 +222,14 @@ templ PaymentsPage(p PageData, l PaymentList) {
 							<td class="px-4 py-2.5 text-slate-600">{ it.Note }</td>
 							<td class="px-4 py-2.5 text-right font-medium tabular-nums">{ money.FormatTL(it.Amount) }</td>
 							<td class="px-4 py-2.5 text-right">
+								<div class="flex items-center justify-end gap-3">
+									@AttachButton("payment", it.ID.String(), l.Attach[it.ID])
 								if p.Can("payment.delete") {
 									<form method="post" action={ templ.SafeURL("/payments/" + it.ID.String() + "/delete") } @submit="if (!confirm('Bu tahsilat silinsin mi? Müşterinin bakiyesi buna göre değişir.')) $event.preventDefault()">
 										<button type="submit" class="text-xs text-red-700 underline">Sil</button>
 									</form>
 								}
+								</div>
 							</td>
 						</tr>
 					}
@@ -252,7 +262,7 @@ templ PaymentsPage(p PageData, l PaymentList) {
 
 templ PaymentFormPage(p PageData, f PaymentForm) {
 	@Layout(p) {
-		<form method="post" action="/payments" class="max-w-xl space-y-4 card p-5">
+		<form method="post" action="/payments" class="max-w-xl space-y-4 card p-5" x-data={ "{ method: " + jsonString(f.Method) + " }" }>
 			if len(f.Errors) > 0 {
 				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
 			}
@@ -294,7 +304,7 @@ templ PaymentFormPage(p PageData, f PaymentForm) {
 			</div>
 			<div>
 				<label for="method" class="block text-sm font-medium text-slate-700">Ödeme yöntemi</label>
-				<select id="method" name="method" class={ inputClass }>
+				<select id="method" name="method" x-model="method" class={ inputClass }>
 					for _, m := range payment.Methods {
 						<option value={ string(m) } selected?={ string(m) == f.Method }>{ m.Label() }</option>
 					}
@@ -302,6 +312,31 @@ templ PaymentFormPage(p PageData, f PaymentForm) {
 				if f.Errors["method"] != "" {
 					<p class="mt-1 text-sm text-red-600">{ f.Errors["method"] }</p>
 				}
+			</div>
+			<div x-show="method === 'CHEQUE' || method === 'NOTE'" x-cloak class="grid gap-4 rounded-2xl bg-amber-50/60 p-4 ring-1 ring-inset ring-amber-200 sm:grid-cols-2">
+				<div class="sm:col-span-2 text-xs text-amber-900">Çek/senet alındığında vade tarihi zorunludur; çek, “Çekler” ekranında takip edilir ve fotoğrafı eklenebilir.</div>
+				<div>
+					<label for="cheque_due" class="block text-sm font-medium text-slate-700">Vade tarihi</label>
+					<input id="cheque_due" name="cheque_due" type="date" value={ f.ChequeDue } class={ inputClass }/>
+					if f.Errors["cheque_due"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["cheque_due"] }</p>
+					}
+				</div>
+				<div>
+					<label for="cheque_no" class="block text-sm font-medium text-slate-700">Çek / senet no</label>
+					<input id="cheque_no" name="cheque_no" value={ f.ChequeNo } class={ inputClass }/>
+					if f.Errors["cheque_no"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["cheque_no"] }</p>
+					}
+				</div>
+				<div>
+					<label for="bank" class="block text-sm font-medium text-slate-700">Banka</label>
+					<input id="bank" name="bank" value={ f.Bank } class={ inputClass }/>
+				</div>
+				<div>
+					<label for="drawer" class="block text-sm font-medium text-slate-700">Keşideci (çeki yazan)</label>
+					<input id="drawer" name="drawer" value={ f.Drawer } class={ inputClass }/>
+				</div>
 			</div>
 			<div id="open-items">
 				@OpenItemsSelect(f.Open, f.InvoiceID)

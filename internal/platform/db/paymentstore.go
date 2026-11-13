@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/ledger"
@@ -34,6 +35,12 @@ func (s *PaymentStore) Create(ctx context.Context, p payment.Payment) (uuid.UUID
 	if p.InvoiceID != nil {
 		inv = uuid.NullUUID{UUID: *p.InvoiceID, Valid: true}
 	}
+	if p.Cheque != nil {
+		return s.q.CreateChequePayment(ctx, dbgen.CreateChequePaymentParams{
+			CustomerID: p.CustomerID, PaidAt: toDate(p.Date), Amount: p.Amount, Method: string(p.Method), Note: p.Note, InvoiceID: inv,
+			Number: p.Cheque.Number, Bank: p.Cheque.Bank, Drawer: p.Cheque.Drawer, DueDate: toDate(p.Cheque.Due),
+		})
+	}
 	return s.q.CreatePayment(ctx, dbgen.CreatePaymentParams{
 		CustomerID: p.CustomerID, PaidAt: toDate(p.Date), Amount: p.Amount, Method: string(p.Method), Note: p.Note, InvoiceID: inv,
 	})
@@ -41,6 +48,10 @@ func (s *PaymentStore) Create(ctx context.Context, p payment.Payment) (uuid.UUID
 
 func (s *PaymentStore) Delete(ctx context.Context, id uuid.UUID) error {
 	n, err := s.q.DeletePayment(ctx, id)
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == "23503" { // foreign_key_violation: çek ciro edilmiş
+		return payment.ErrInUse
+	}
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,399 @@
+package views
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	"hesapkitap/internal/cheque"
+	"hesapkitap/internal/money"
+	"hesapkitap/internal/supplier"
+)
+
+// ChequeTab is one tab of the cheque list.
+type ChequeTab struct {
+	Key    string // portfolio | overdue | collected | bounced | endorsed | all
+	Label  string
+	N      int
+	Amount int64
+	Active bool
+}
+
+// ChequeList is the data of the cheques page.
+type ChequeList struct {
+	Items     []cheque.Cheque
+	Tabs      []ChequeTab
+	Tab       string
+	Query     string
+	Page      int
+	PageCount int
+	Total     int
+	Today     time.Time
+	Attach    map[uuid.UUID]int
+}
+
+func chequeHref(tab, q string, page int) string {
+	return fmt.Sprintf("/cheques?tab=%s&q=%s&page=%d", tab, templURLEscape(q), page)
+}
+
+func chequeStatusClass(s cheque.Status) string {
+	switch s {
+	case cheque.StatusCollected:
+		return "badge badge-green"
+	case cheque.StatusBounced:
+		return "badge badge-red"
+	case cheque.StatusEndorsed:
+		return "badge badge-brand"
+	}
+	return "badge badge-amber"
+}
+
+func dueNote(c cheque.Cheque, today time.Time) string {
+	if c.Status != cheque.StatusPortfolio {
+		return ""
+	}
+	d := c.DaysToDue(today)
+	switch {
+	case d < 0:
+		return fmt.Sprintf("%d gün geçti", -d)
+	case d == 0:
+		return "bugün"
+	}
+	return fmt.Sprintf("%d gün kaldı", d)
+}
+
+func dueNoteClass(c cheque.Cheque, today time.Time) string {
+	if c.Overdue(today) {
+		return "text-xs font-medium text-rose-600"
+	}
+	if c.Status == cheque.StatusPortfolio && c.DaysToDue(today) <= 7 {
+		return "text-xs font-medium text-amber-700"
+	}
+	return "text-xs text-slate-500"
+}
+
+func chequeTitle(c cheque.Cheque) string {
+	s := c.Kind.Label()
+	if c.Number != "" {
+		s += " " + c.Number
+	}
+	return s
+}
+
+func chequeBank(c cheque.Cheque) string {
+	if c.Bank != "" {
+		return c.Bank
+	}
+	return "—"
+}
+
+// chequeSubTabs links the received and given cheque pages.
+templ chequeSubTabs(active string) {
+	<div class="mb-4 flex gap-1 rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm" role="tablist">
+		<a href="/cheques" class={ tabClass(active == "received") }>Aldığımız çekler</a>
+		<a href="/cheques/own" class={ tabClass(active == "own") }>Verdiğimiz çekler</a>
+	</div>
+}
+
+templ ChequesPage(p PageData, l ChequeList) {
+	@Layout(p) {
+		@chequeSubTabs("received")
+		<div class="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm" role="tablist">
+			for _, t := range l.Tabs {
+				<a href={ templ.SafeURL(chequeHref(t.Key, "", 1)) } role="tab" class={ tabClass(t.Active) }>
+					{ t.Label }
+					<span class={ tabCountClass(t.Active) }>{ fmt.Sprint(t.N) }</span>
+				</a>
+			}
+		</div>
+		<form method="get" action="/cheques" class="mb-4 flex flex-wrap items-center gap-2">
+			<input type="hidden" name="tab" value={ l.Tab }/>
+			<input name="q" type="search" value={ l.Query } placeholder="Müşteri, çek no veya keşideci ara…" class="input !mt-0 sm:!w-80"/>
+			<button type="submit" class="btn btn-secondary">Ara</button>
+			for _, t := range l.Tabs {
+				if t.Active && t.Key != "all" && t.Key != "collected" && t.Key != "bounced" && t.Key != "endorsed" {
+					<span class="text-sm text-slate-500">Bu sekmede toplam <b class="tabular-nums text-slate-800">{ money.FormatTL(t.Amount) }</b></span>
+				}
+			}
+		</form>
+		if len(l.Items) == 0 {
+			<div class="card border-dashed p-10 text-center text-slate-500">
+				Bu görünümde çek yok. Tahsilat girerken yöntem olarak “Çek” seçip vade tarihini yazın.
+			</div>
+		} else {
+			<div class="table-card overflow-x-auto">
+				<table class="data-table">
+					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<tr>
+							<th class="px-4 py-3">Vade</th>
+							<th class="px-4 py-3">Müşteri</th>
+							<th class="hidden px-4 py-3 md:table-cell">Çek / banka</th>
+							<th class="hidden px-4 py-3 lg:table-cell">Keşideci</th>
+							<th class="px-4 py-3 text-right">Tutar</th>
+							<th class="px-4 py-3">Durum</th>
+							<th class="px-4 py-3"></th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						for _, c := range l.Items {
+							<tr data-href={ "/cheques/" + c.ID.String() }>
+								<td class="px-4 py-3">
+									<a href={ templ.SafeURL("/cheques/" + c.ID.String()) } class="font-medium text-slate-800 hover:underline">{ dateText(c.DueDate) }</a>
+									<div class={ dueNoteClass(c, l.Today) }>{ dueNote(c, l.Today) }</div>
+								</td>
+								<td class="px-4 py-3 font-medium text-slate-900">{ c.CustomerName }</td>
+								<td class="hidden px-4 py-3 text-slate-600 md:table-cell">
+									{ chequeTitle(c) }
+									<div class="text-xs text-slate-500">{ chequeBank(c) }</div>
+								</td>
+								<td class="hidden px-4 py-3 text-slate-600 lg:table-cell">{ c.Drawer }</td>
+								<td class="px-4 py-3 text-right font-medium tabular-nums">{ money.FormatTL(c.Amount) }</td>
+								<td class="px-4 py-3">
+									<span class={ chequeStatusClass(c.Status) }>{ c.Status.Label() }</span>
+									if c.EndorsedTo != "" {
+										<div class="mt-0.5 text-xs text-slate-500">{ c.EndorsedTo }</div>
+									}
+								</td>
+								<td class="px-4 py-3 text-right">
+									@AttachButton("cheque", c.ID.String(), l.Attach[c.ID])
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="mt-3 flex items-center justify-between text-sm text-slate-600">
+				<span>{ fmt.Sprint(l.Total) } çek</span>
+				if l.PageCount > 1 {
+					<div class="flex items-center gap-2">
+						if l.Page > 1 {
+							<a href={ templ.SafeURL(chequeHref(l.Tab, l.Query, l.Page-1)) } class={ btnSecondary }>← Önceki</a>
+						}
+						<span>{ fmt.Sprint(l.Page) } / { fmt.Sprint(l.PageCount) }</span>
+						if l.Page < l.PageCount {
+							<a href={ templ.SafeURL(chequeHref(l.Tab, l.Query, l.Page+1)) } class={ btnSecondary }>Sonraki →</a>
+						}
+					</div>
+				}
+			</div>
+		}
+	}
+}
+
+// ChequeView is the data of one cheque's page.
+type ChequeView struct {
+	C         cheque.Cheque
+	Today     time.Time
+	CanManage bool
+	Suppliers []supplier.Supplier
+	Attach    AttachmentPanel
+	Message   string
+	Flash     string
+	Date      string // ciro tarihi (yyyy-mm-dd)
+}
+
+func chequeConfirm(c cheque.Cheque, status cheque.Status) Confirm {
+	cf := Confirm{
+		Action:  "/cheques/" + c.ID.String() + "/status",
+		Hidden:  [][2]string{{"status", string(status)}},
+		Details: [][2]string{{"Müşteri", c.CustomerName}, {"Tutar", money.FormatTL(c.Amount)}, {"Vade", dateText(c.DueDate)}},
+	}
+	switch status {
+	case cheque.StatusCollected:
+		cf.Button, cf.ButtonClass = "Tahsil edildi", "btn btn-primary"
+		cf.Title, cf.Yes = "Çek tahsil edildi mi?", "Evet, tahsil edildi"
+		cf.Message = "Çek bankadan ödendiyse işaretleyin. İsterseniz sonradan portföye geri alabilirsiniz."
+	case cheque.StatusBounced:
+		cf.Button, cf.ButtonClass = "Karşılıksız çıktı", "btn btn-danger"
+		cf.Title, cf.Yes, cf.Danger = "Çek karşılıksız mı çıktı?", "Evet, karşılıksız", true
+		cf.Message = "Müşterinin bu çek kadar borcu yeniden açılır (cari bakiyeye geri eklenir)."
+	default:
+		cf.Button, cf.ButtonClass = "Portföye geri al", "btn btn-secondary"
+		cf.Title, cf.Yes = "Çek portföye geri alınsın mı?", "Geri al"
+		cf.Message = "Çek yeniden elimizde, vadesi bekleniyor olarak görünür."
+	}
+	return cf
+}
+
+templ ChequePage(p PageData, v ChequeView) {
+	@Layout(p) {
+		<div class="mb-4"><a href="/cheques" class="text-sm text-slate-500 hover:text-slate-800">← Çeklere dön</a></div>
+		if v.Flash != "" {
+			<div class="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ v.Flash }</div>
+		}
+		if v.Message != "" {
+			<div class="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ v.Message }</div>
+		}
+		<div class="grid gap-5 lg:grid-cols-3">
+			<div class="card p-5 lg:col-span-2">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{ chequeTitle(v.C) }</div>
+						<div class="mt-1 text-3xl font-semibold tabular-nums text-slate-900">{ money.FormatTL(v.C.Amount) }</div>
+					</div>
+					<span class={ chequeStatusClass(v.C.Status) }>{ v.C.Status.Label() }</span>
+				</div>
+				<dl class="mt-5 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+					<div><dt class="text-slate-500">Müşteri</dt><dd class="font-medium"><a class="underline" href={ templ.SafeURL("/customers/" + v.C.CustomerID.String()) }>{ v.C.CustomerName }</a></dd></div>
+					<div><dt class="text-slate-500">Keşideci</dt><dd class="font-medium">{ emailOrDash(v.C.Drawer) }</dd></div>
+					<div><dt class="text-slate-500">Banka</dt><dd class="font-medium">{ chequeBank(v.C) }</dd></div>
+					<div><dt class="text-slate-500">Çek / senet no</dt><dd class="font-medium">{ emailOrDash(v.C.Number) }</dd></div>
+					<div><dt class="text-slate-500">Alındığı tarih</dt><dd class="font-medium">{ dateText(v.C.ReceivedAt) }</dd></div>
+					<div>
+						<dt class="text-slate-500">Vade</dt>
+						<dd class="font-medium">
+							{ dateText(v.C.DueDate) }
+							<span class={ dueNoteClass(v.C, v.Today) }>{ dueNote(v.C, v.Today) }</span>
+						</dd>
+					</div>
+					if v.C.StatusDate != nil {
+						<div><dt class="text-slate-500">Durum tarihi</dt><dd class="font-medium">{ dateText(*v.C.StatusDate) }</dd></div>
+					}
+					if v.C.EndorsedTo != "" {
+						<div><dt class="text-slate-500">Ciro edilen tedarikçi</dt><dd class="font-medium">{ v.C.EndorsedTo }</dd></div>
+					}
+					if v.C.Note != "" {
+						<div class="sm:col-span-2"><dt class="text-slate-500">Açıklama</dt><dd>{ v.C.Note }</dd></div>
+					}
+				</dl>
+				if v.CanManage {
+					<div class="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-5">
+						if v.C.Status == cheque.StatusPortfolio {
+							@ConfirmAction(chequeConfirm(v.C, cheque.StatusCollected))
+							@ConfirmAction(chequeConfirm(v.C, cheque.StatusBounced))
+						} else if v.C.Status == cheque.StatusCollected || v.C.Status == cheque.StatusBounced {
+							@ConfirmAction(chequeConfirm(v.C, cheque.StatusPortfolio))
+						} else {
+							<p class="text-sm text-slate-500">Bu çek ciro edildi. Geri almak için tedarikçi sayfasında ilgili ödemeyi silin.</p>
+						}
+					</div>
+					if v.C.Status == cheque.StatusPortfolio && len(v.Suppliers) > 0 {
+						<form method="post" action={ templ.SafeURL("/cheques/" + v.C.ID.String() + "/endorse") } class="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-inset ring-slate-200">
+							<h3 class="text-sm font-semibold text-slate-900">Tedarikçiye ciro et</h3>
+							<p class="mt-0.5 text-xs text-slate-500">Çeki toptancıya ödeme olarak verirsiniz; tedarikçi borcumuz bu tutar kadar düşer.</p>
+							<div class="mt-3 grid gap-3 sm:grid-cols-3">
+								<div class="sm:col-span-2">
+									<label for="supplier_id" class="block text-xs font-medium text-slate-600">Tedarikçi</label>
+									<select id="supplier_id" name="supplier_id" required class={ inputClass }>
+										<option value="">Seçin…</option>
+										for _, s := range v.Suppliers {
+											<option value={ s.ID.String() }>{ s.Name } — borcumuz { money.FormatTL(s.Balance) }</option>
+										}
+									</select>
+								</div>
+								<div>
+									<label for="endorse_date" class="block text-xs font-medium text-slate-600">Tarih</label>
+									<input id="endorse_date" name="date" type="date" value={ v.Date } class={ inputClass }/>
+								</div>
+							</div>
+							<button type="submit" class="btn btn-secondary mt-3">Ciro et</button>
+						</form>
+					}
+				}
+			</div>
+			<div class="card p-5">
+				<h2 class="card-title mb-3">Fotoğraf / belge</h2>
+				@AttachmentBox(v.Attach)
+			</div>
+		</div>
+	}
+}
+
+// OwnChequeList is the data of the "given cheques" page.
+type OwnChequeList struct {
+	Items     []supplier.OwnCheque
+	Today     time.Time
+	CanWrite  bool
+	Pending   int64
+	PendingN  int
+	Attach    map[uuid.UUID]int
+	Flash     string
+}
+
+func ownChequeStatus(c supplier.OwnCheque, today time.Time) (string, string) {
+	switch {
+	case c.Cleared:
+		return "Hesaptan çıktı", "badge badge-green"
+	case c.Due.Before(today):
+		return "Vadesi geçti", "badge badge-red"
+	}
+	return "Vade bekliyor", "badge badge-amber"
+}
+
+func ownChequeDays(c supplier.OwnCheque, today time.Time) string {
+	if c.Cleared {
+		return ""
+	}
+	d := int(c.Due.Sub(today).Hours() / 24)
+	switch {
+	case d < 0:
+		return fmt.Sprintf("%d gün geçti", -d)
+	case d == 0:
+		return "bugün"
+	}
+	return fmt.Sprintf("%d gün kaldı", d)
+}
+
+templ OwnChequesPage(p PageData, l OwnChequeList) {
+	@Layout(p) {
+		@chequeSubTabs("own")
+		if l.Flash != "" {
+			<div class="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ l.Flash }</div>
+		}
+		<div class="mb-4 text-sm text-slate-600">
+			Ödenecek çeklerimiz: <b class="tabular-nums text-slate-900">{ money.FormatTL(l.Pending) }</b> ({ fmt.Sprint(l.PendingN) } adet). Çekler tedarikçi sayfasından “Ödeme ekle → Kendi çekimiz” ile girilir.
+		</div>
+		if len(l.Items) == 0 {
+			<div class="card border-dashed p-10 text-center text-slate-500">Tedarikçilere verilmiş çek yok.</div>
+		} else {
+			<div class="table-card overflow-x-auto">
+				<table class="data-table">
+					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<tr>
+							<th class="px-4 py-3">Vade</th>
+							<th class="px-4 py-3">Tedarikçi</th>
+							<th class="hidden px-4 py-3 md:table-cell">Çek no / banka</th>
+							<th class="px-4 py-3 text-right">Tutar</th>
+							<th class="px-4 py-3">Durum</th>
+							<th class="px-4 py-3"></th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						for _, c := range l.Items {
+							<tr data-href={ "/suppliers/" + c.SupplierID.String() }>
+								<td class="px-4 py-3">
+									<span class="font-medium text-slate-800">{ dateText(c.Due) }</span>
+									<div class="text-xs text-slate-500">{ ownChequeDays(c, l.Today) }</div>
+								</td>
+								<td class="px-4 py-3 font-medium text-slate-900">{ c.SupplierName }</td>
+								<td class="hidden px-4 py-3 text-slate-600 md:table-cell">{ emailOrDash(c.Number) } <span class="text-xs text-slate-500">{ c.Bank }</span></td>
+								<td class="px-4 py-3 text-right font-medium tabular-nums">{ money.FormatTL(c.Amount) }</td>
+								<td class="px-4 py-3">
+									{{ label, cls := ownChequeStatus(c, l.Today) }}
+									<span class={ cls }>{ label }</span>
+								</td>
+								<td class="px-4 py-3 text-right">
+									<div class="flex items-center justify-end gap-2">
+										@AttachButton("supplier_payment", c.PaymentID.String(), l.Attach[c.PaymentID])
+										if l.CanWrite {
+											<form method="post" action={ templ.SafeURL("/supplier-payments/" + c.PaymentID.String() + "/cleared") }>
+												if c.Cleared {
+													<input type="hidden" name="cleared" value="0"/>
+													<button type="submit" class="text-xs text-slate-500 underline">Geri al</button>
+												} else {
+													<input type="hidden" name="cleared" value="1"/>
+													<button type="submit" class="btn btn-secondary !px-2.5 !py-1 text-xs">Hesaptan çıktı</button>
+												}
+											</form>
+										}
+									</div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}

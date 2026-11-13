@@ -42,11 +42,16 @@ from invoices
 where status in ('SENDING', 'ISSUED') and (provider_status is null or provider_status not in (29, 105, 305, 405))
 order by issue_date, created_at;
 
+-- Karşılıksız çıkan çek/senet bakiyeye sayılmaz (borç geri açılır).
 -- name: LedgerPaymentsByCustomer :many
-select id, customer_id, paid_at, amount, method, note, invoice_id from payments where customer_id = $1 order by paid_at, created_at;
+select id, customer_id, paid_at, amount, method, note, invoice_id from payments p where customer_id = $1
+  and not exists (select 1 from cheques c where c.payment_id = p.id and c.status = 'BOUNCED')
+order by paid_at, created_at;
 
 -- name: LedgerPaymentsAll :many
-select id, customer_id, paid_at, amount, method, note, invoice_id from payments order by paid_at, created_at;
+select id, customer_id, paid_at, amount, method, note, invoice_id from payments p
+where not exists (select 1 from cheques c where c.payment_id = p.id and c.status = 'BOUNCED')
+order by paid_at, created_at;
 
 -- name: LedgerCustomersAll :many
 select id, name, opening_balance, active from customers order by lower(name);

@@ -20,9 +20,11 @@ var navGroups = []navGroup{
 	{Title: "Satış", Items: []navItem{
 		{Label: "Faturalar", Href: "/invoices", Key: "invoices", Icon: "document"},
 		{Label: "Tahsilatlar", Href: "/payments", Key: "payments", Icon: "banknotes"},
+		{Label: "Çekler", Href: "/cheques", Key: "cheques", Icon: "ticket"},
 	}},
 	{Title: "Alış", Items: []navItem{
 		{Label: "Gelen faturalar", Href: "/incoming", Key: "incoming", Icon: "inbox"},
+		{Label: "Tedarikçiler", Href: "/suppliers", Key: "suppliers", Icon: "truck", Perm: "report.view"},
 	}},
 	{Title: "Kayıtlar", Items: []navItem{
 		{Label: "Müşteriler", Href: "/customers", Key: "customers", Icon: "users"},
@@ -195,6 +197,7 @@ templ Layout(p PageData) {
 					{ children... }
 				</div>
 			</main>
+			<div id="modal-root"></div>
 		</body>
 	</html>
 }

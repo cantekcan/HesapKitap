@@ -1,0 +1,179 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/cheque"
+	"hesapkitap/internal/money"
+)
+
+// CashflowView is the data of the cash-flow report.
+type CashflowView struct {
+	Months      []cheque.FlowMonth
+	Receivable  int64 // müşterilerin açık borcu
+	Portfolio   int64 // portföydeki müşteri çekleri
+	SupplierDue int64 // tedarikçilere borcumuz
+	OwnPending  int64 // ödenecek kendi çeklerimiz
+}
+
+// Net is what we expect to collect minus what we have to pay.
+func (c CashflowView) Net() int64 {
+	return c.Receivable + c.Portfolio - c.SupplierDue - c.OwnPending
+}
+
+var monthNames = [...]string{"Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"}
+
+func flowLabel(m cheque.FlowMonth) string {
+	if m.Overdue {
+		return "Vadesi geçmiş"
+	}
+	return fmt.Sprintf("%s %d", monthNames[m.Month.Month()-1], m.Month.Year())
+}
+
+func flowMax(ms []cheque.FlowMonth) int64 {
+	var mx int64 = 1
+	for _, m := range ms {
+		mx = max(mx, m.In, m.Out)
+	}
+	return mx
+}
+
+func barWidth(v, mx int64) string { return fmt.Sprintf("width:%d%%", v*100/mx) }
+
+templ CashflowPage(p PageData, v CashflowView) {
+	@Layout(p) {
+		<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+			<div class="card p-5">
+				<div class="stat-label">Müşterilerden alacağımız</div>
+				<div class="stat-value">{ money.FormatTL(v.Receivable) }</div>
+				<div class="text-xs text-slate-500">Çek verilmemiş açık borçlar</div>
+			</div>
+			<a href="/cheques" class="card p-5 transition hover:-translate-y-0.5 hover:shadow-md">
+				<div class="stat-label">Portföydeki çekler</div>
+				<div class="stat-value text-emerald-700">{ money.FormatTL(v.Portfolio) }</div>
+				<div class="text-xs text-slate-500">Vadesi gelince girecek</div>
+			</a>
+			<a href="/suppliers" class="card p-5 transition hover:-translate-y-0.5 hover:shadow-md">
+				<div class="stat-label">Tedarikçilere borcumuz</div>
+				<div class="stat-value text-rose-700">{ money.FormatTL(v.SupplierDue) }</div>
+				<div class="text-xs text-slate-500">Verdiğimiz çekler düşülmüş</div>
+			</a>
+			<a href="/cheques/own" class="card p-5 transition hover:-translate-y-0.5 hover:shadow-md">
+				<div class="stat-label">Ödenecek çeklerimiz</div>
+				<div class="stat-value text-rose-700">{ money.FormatTL(v.OwnPending) }</div>
+				<div class="text-xs text-slate-500">Vadesi gelince çıkacak</div>
+			</a>
+		</div>
+		<div class="card mt-5 p-5">
+			<div class="stat-label">Net durum</div>
+			<div class={ "stat-value " + supplierBalanceClass(-v.Net()) }>{ money.FormatTL(v.Net()) }</div>
+			<div class="text-xs text-slate-500">Alacaklarımız + portföydeki çekler − tedarikçi borçlarımız − ödenecek çeklerimiz</div>
+		</div>
+		<h2 class="mb-2 mt-6 text-sm font-semibold text-slate-900">Aylara göre çek nakit akışı</h2>
+		<div class="table-card overflow-x-auto">
+			<table class="data-table">
+				<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+					<tr>
+						<th class="px-4 py-3">Ay</th>
+						<th class="px-4 py-3">Girecek (müşteri çekleri)</th>
+						<th class="px-4 py-3">Çıkacak (kendi çeklerimiz)</th>
+						<th class="px-4 py-3 text-right">Fark</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-100">
+					for _, m := range v.Months {
+						<tr>
+							<td class={ "px-4 py-3 font-medium", templ.KV("text-rose-700", m.Overdue) }>{ flowLabel(m) }</td>
+							<td class="px-4 py-3">
+								<div class="tabular-nums">{ money.FormatTL(m.In) }</div>
+								<div class="mt-1 h-1.5 w-full max-w-[14rem] rounded-full bg-slate-100"><div class="h-1.5 rounded-full bg-emerald-500" style={ barWidth(m.In, flowMax(v.Months)) }></div></div>
+							</td>
+							<td class="px-4 py-3">
+								<div class="tabular-nums">{ money.FormatTL(m.Out) }</div>
+								<div class="mt-1 h-1.5 w-full max-w-[14rem] rounded-full bg-slate-100"><div class="h-1.5 rounded-full bg-rose-500" style={ barWidth(m.Out, flowMax(v.Months)) }></div></div>
+							</td>
+							<td class={ "px-4 py-3 text-right font-medium tabular-nums " + supplierBalanceClass(-m.Net()) }>{ money.FormatTL(m.Net()) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<p class="mt-3 text-sm text-slate-500">“Vadesi geçmiş” satırı, vadesi geçtiği hâlde hâlâ tahsil edilmemiş/hesaptan çıkmamış çekleri gösterir; çekleri tahsil edildi diye işaretledikçe azalır. Son aydan sonraki vadeler son satırda toplanır.</p>
+	}
+}
+
+templ HabitsPage(p PageData, hs []cheque.Habit) {
+	@Layout(p) {
+		<p class="mb-4 text-sm text-slate-600">Son 12 aydaki tahsilatlara göre her müşterinin ödeme şekli: toplam ne kadar ödedi, bunun ne kadarı çekle geldi ve çeklerin ortalama vadesi kaç gün.</p>
+		if len(hs) == 0 {
+			<div class="card border-dashed p-10 text-center text-slate-500">Son 12 ayda tahsilat yok.</div>
+		} else {
+			<div class="table-card overflow-x-auto">
+				<table class="data-table">
+					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+						<tr>
+							<th class="px-4 py-3">Müşteri</th>
+							<th class="px-4 py-3 text-right">Ödeme sayısı</th>
+							<th class="px-4 py-3 text-right">Toplam ödenen</th>
+							<th class="px-4 py-3 text-right">Çek payı</th>
+							<th class="px-4 py-3 text-right">Ort. çek vadesi</th>
+							<th class="px-4 py-3 text-right">Karşılıksız</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						for _, h := range hs {
+							<tr data-href={ "/customers/" + h.CustomerID.String() }>
+								<td class="px-4 py-3 font-medium text-slate-900"><a href={ templ.SafeURL("/customers/" + h.CustomerID.String()) } class="hover:underline">{ h.CustomerName }</a></td>
+								<td class="px-4 py-3 text-right tabular-nums">{ fmt.Sprint(h.Payments) }</td>
+								<td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(h.Paid) }</td>
+								<td class="px-4 py-3 text-right tabular-nums">%{ fmt.Sprint(h.ChequeShare()) }</td>
+								<td class="px-4 py-3 text-right tabular-nums">
+									if h.ByCheque > 0 {
+										{ fmt.Sprintf("%.0f", h.AvgTermDays) } gün
+									} else {
+										—
+									}
+								</td>
+								<td class={ "px-4 py-3 text-right tabular-nums", templ.KV("font-semibold text-rose-700", h.Bounced > 0) }>{ fmt.Sprint(h.Bounced) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// ChequePanel is the cheque and debt block of the dashboard.
+type ChequePanel struct {
+	Summary     cheque.DueSummary
+	SupplierDue int64
+	Show        bool
+}
+
+templ moneyTile(label, amount, href, tone, icon, note string) {
+	<a href={ templ.SafeURL(href) } class={ "group flex flex-col justify-between rounded-2xl p-4 ring-1 ring-inset transition hover:-translate-y-0.5 hover:shadow-md " + tileTone(tone) }>
+		<div class="text-[11px] font-semibold uppercase leading-tight tracking-wide opacity-80">{ label }</div>
+		<div class="mt-4 flex items-end justify-between gap-2">
+			<span class="opacity-60 transition group-hover:opacity-100">
+				@Icon(icon)
+			</span>
+			<span class="text-2xl font-semibold leading-none tabular-nums">{ amount }</span>
+		</div>
+		if note != "" {
+			<div class="mt-2 text-right text-[11px] opacity-70">{ note }</div>
+		}
+	</a>
+}
+
+templ ChequeTiles(c ChequePanel) {
+	<section class="mt-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+		<header class="bg-gradient-to-r from-slate-700 to-slate-600 px-5 py-3 text-center text-sm font-semibold tracking-wide text-white">ÇEKLER VE BORÇLARIMIZ</header>
+		<div class="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
+			@moneyTile("Vadesi geçmiş çek", money.FormatTL(c.Summary.Overdue.Amount), "/cheques?tab=overdue", "red", "alert", fmt.Sprintf("%d adet", c.Summary.Overdue.Count))
+			@moneyTile("7 gün içinde vadesi gelen", money.FormatTL(c.Summary.Soon.Amount), "/cheques?tab=portfolio", "amber", "clock", fmt.Sprintf("%d adet", c.Summary.Soon.Count))
+			@moneyTile("Portföydeki çekler", money.FormatTL(c.Summary.All.Amount), "/cheques", "green", "ticket", fmt.Sprintf("%d adet", c.Summary.All.Count))
+			@moneyTile("Tedarikçilere borcumuz", money.FormatTL(c.SupplierDue), "/suppliers", "gray", "truck", "")
+		</div>
+	</section>
+}

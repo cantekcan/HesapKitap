@@ -279,7 +279,9 @@ func (q *Queries) LedgerInvoicesByCustomer(ctx context.Context, customerID uuid.
 }
 
 const ledgerPaymentsAll = `-- name: LedgerPaymentsAll :many
-select id, customer_id, paid_at, amount, method, note, invoice_id from payments order by paid_at, created_at
+select id, customer_id, paid_at, amount, method, note, invoice_id from payments p
+where not exists (select 1 from cheques c where c.payment_id = p.id and c.status = 'BOUNCED')
+order by paid_at, created_at
 `
 
 type LedgerPaymentsAllRow struct {
@@ -321,7 +323,9 @@ func (q *Queries) LedgerPaymentsAll(ctx context.Context) ([]LedgerPaymentsAllRow
 }
 
 const ledgerPaymentsByCustomer = `-- name: LedgerPaymentsByCustomer :many
-select id, customer_id, paid_at, amount, method, note, invoice_id from payments where customer_id = $1 order by paid_at, created_at
+select id, customer_id, paid_at, amount, method, note, invoice_id from payments p where customer_id = $1
+  and not exists (select 1 from cheques c where c.payment_id = p.id and c.status = 'BOUNCED')
+order by paid_at, created_at
 `
 
 type LedgerPaymentsByCustomerRow struct {
@@ -334,6 +338,7 @@ type LedgerPaymentsByCustomerRow struct {
 	InvoiceID  uuid.NullUUID
 }
 
+// Karşılıksız çıkan çek/senet bakiyeye sayılmaz (borç geri açılır).
 func (q *Queries) LedgerPaymentsByCustomer(ctx context.Context, customerID uuid.UUID) ([]LedgerPaymentsByCustomerRow, error) {
 	rows, err := q.db.Query(ctx, ledgerPaymentsByCustomer, customerID)
 	if err != nil {

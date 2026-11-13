@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"hesapkitap/internal/attachment"
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/ledger"
 	"hesapkitap/internal/money"
@@ -64,8 +65,17 @@ func (s *server) paymentList(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "tahsilat toplamı okunamadı", err)
 		return
 	}
+	ids := make([]uuid.UUID, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	counts, err := s.Attachments.Counts(r.Context(), attachment.OwnerPayment, ids)
+	if err != nil {
+		s.serverError(w, r, "ekler okunamadı", err)
+		return
+	}
 	l := views.PaymentList{Items: items, Query: q, From: formatDate(from), To: formatDate(to), Page: page,
-		PageCount: max(1, (total+paymentsPerPage-1)/paymentsPerPage), Total: total, SumAll: sum}
+		PageCount: max(1, (total+paymentsPerPage-1)/paymentsPerPage), Total: total, SumAll: sum, Attach: counts}
 	render(w, r, http.StatusOK, views.PaymentsPage(s.pageData(r, "payments", "Tahsilatlar"), l))
 }
 
@@ -116,8 +126,12 @@ func (s *server) paymentCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v := r.PostForm.Get
-	f := views.PaymentForm{CustomerID: v("customer_id"), Date: v("paid_at"), Amount: v("amount"), Method: v("method"), Note: v("note"), InvoiceID: v("invoice_id")}
+	f := views.PaymentForm{CustomerID: v("customer_id"), Date: v("paid_at"), Amount: v("amount"), Method: v("method"), Note: v("note"), InvoiceID: v("invoice_id"),
+		ChequeDue: v("cheque_due"), ChequeNo: v("cheque_no"), Bank: v("bank"), Drawer: v("drawer")}
 	p := payment.Payment{Date: parseDate(f.Date), Method: payment.Method(f.Method), Note: f.Note}
+	if p.Method.HasTerm() {
+		p.Cheque = &payment.ChequeInfo{Number: f.ChequeNo, Bank: f.Bank, Drawer: f.Drawer, Due: parseDate(f.ChequeDue)}
+	}
 	if id, err := uuid.Parse(f.CustomerID); err == nil {
 		p.CustomerID = id
 	}
@@ -166,6 +180,10 @@ func (s *server) paymentDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Payments.Delete(r.Context(), id); err != nil && !errors.Is(err, payment.ErrNotFound) {
+		if errors.Is(err, payment.ErrInUse) {
+			http.Error(w, "Bu tahsilat bir çek ile tedarikçiye ciro edilmiş; önce tedarikçi ekranından ciro ödemesini silin.", http.StatusConflict)
+			return
+		}
 		s.serverError(w, r, "tahsilat silinemedi", err)
 		return
 	}
