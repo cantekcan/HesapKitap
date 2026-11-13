@@ -100,7 +100,7 @@ templ head(title string) {
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1"/>
 	<meta name="theme-color" content="#1e1b4b"/>
-	<title>{ title } · Hesap Kitap</title>
+	<title>Hesap Kitap</title>
 	<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 	<link rel="stylesheet" href={ "/static/app.css?v=" + AssetVersion }/>
 	<script src="/static/htmx.min.js" defer></script>
@@ -125,13 +125,13 @@ templ LogoMark(size string) {
 }
 
 templ Logo() {
-	<div class="flex items-center gap-3">
+	<a href="/" class="flex items-center gap-3 rounded-xl transition hover:opacity-90" aria-label="Ana sayfa">
 		@LogoMark("h-12 w-12 shrink-0 drop-shadow-[0_6px_14px_rgba(99,102,241,0.45)]")
 		<div class="leading-tight">
 			<div class="text-xl font-bold tracking-tight text-white">Hesap Kitap</div>
 			<div class="mt-0.5 text-xs font-medium text-brand-300">Fatura &amp; Cari Takip</div>
 		</div>
-	</div>
+	</a>
 }
 
 templ Layout(p PageData) {
@@ -142,10 +142,10 @@ templ Layout(p PageData) {
 		</head>
 		<body class="h-full font-sans" x-data="{ open: false }" @keydown.escape.window="open = false">
 			<div class="no-print sticky top-0 z-20 flex items-center justify-between bg-brand-950 px-4 py-3 text-white lg:hidden">
-				<div class="flex items-center gap-2.5">
+				<a href="/" class="flex items-center gap-2.5" aria-label="Ana sayfa">
 					@LogoMark("h-10 w-10")
 					<span class="text-lg font-bold tracking-tight">Hesap Kitap</span>
-				</div>
+				</a>
 				<button type="button" class="rounded-lg p-2 hover:bg-white/10" @click="open = !open" aria-label="Menüyü aç/kapat" :aria-expanded="open">
 					@Icon("menu")
 				</button>
