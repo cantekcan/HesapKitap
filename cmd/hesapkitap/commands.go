@@ -15,6 +15,7 @@ import (
 
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/config"
 	"hesapkitap/internal/platform/db"
@@ -85,6 +86,8 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Customers: customers,
 		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
 		Invoices:  invoices,
+		Payments:  &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
+		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
 		Logger:    log,
 		Pool:      pool,
 		Sessions:  auth.NewSessionManager(pool, cfg.IsProduction()),

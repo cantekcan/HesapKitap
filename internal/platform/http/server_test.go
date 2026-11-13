@@ -15,6 +15,7 @@ import (
 
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/db"
 	"hesapkitap/internal/platform/db/dbgen"
@@ -64,6 +65,8 @@ func newTestApp(t *testing.T) *testApp {
 		Customers: customers,
 		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
 		Invoices:  invoices,
+		Payments:  &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
+		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
 	})
 	require.NoError(t, err)
 

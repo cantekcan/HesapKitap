@@ -1,0 +1,384 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/customer"
+	"hesapkitap/internal/ledger"
+	"hesapkitap/internal/money"
+	"hesapkitap/internal/payment"
+)
+
+// PaymentList is the data of the payments page.
+type PaymentList struct {
+	Items     []payment.Payment
+	Query     string
+	From      string // yyyy-mm-dd
+	To        string
+	Page      int
+	PageCount int
+	Total     int
+	SumAll    int64 // süzgeçle eşleşen tahsilatların toplamı
+}
+
+// PaymentForm is the new payment page.
+type PaymentForm struct {
+	CustomerID string
+	Date       string
+	Amount     string
+	Method     string
+	Note       string
+	InvoiceID  string
+	Errors     payment.FieldErrors
+	Customers  []customer.Customer
+	Open       []ledger.OpenItem // seçili müşterinin açık kalemleri
+}
+
+// CustomerLedger is the balance panel on the customer page.
+type CustomerLedger struct {
+	CustomerID string
+	Position   ledger.Position
+}
+
+// StatementPage is the customer statement (ekstre).
+type StatementPage struct {
+	CustomerID   string
+	CustomerName string
+	From, To     string
+	Rows         []ledger.Row
+	Position     ledger.Position
+	TotalDebit   int64
+	TotalCredit  int64
+}
+
+func pageLink(base string, q, from, to string, page int) string {
+	return fmt.Sprintf("%s?q=%s&from=%s&to=%s&page=%d", base, templURLEscape(q), from, to, page)
+}
+
+func balanceClass(b int64) string {
+	switch {
+	case b > 0:
+		return "text-rose-600"
+	case b < 0:
+		return "text-emerald-600"
+	}
+	return "text-slate-500"
+}
+
+func rowKindLabel(r ledger.Row) string {
+	switch r.Kind {
+	case ledger.RowCarried:
+		return "Devir"
+	case ledger.RowOpening:
+		return "Açılış bakiyesi"
+	case ledger.RowInvoice:
+		return "Fatura"
+	}
+	return "Tahsilat"
+}
+
+func debitText(v int64) string {
+	if v == 0 {
+		return ""
+	}
+	return money.FormatTL(v)
+}
+
+func overdueText(it ledger.OpenItem) string {
+	if it.IsOpening {
+		return "Devreden"
+	}
+	if it.DaysOverdue > 0 {
+		return fmt.Sprintf("%d gün gecikmiş", it.DaysOverdue)
+	}
+	return "Vadesi gelmedi"
+}
+
+func overdueClass(it ledger.OpenItem) string {
+	if it.IsOpening || it.DaysOverdue > 0 {
+		return "text-rose-600"
+	}
+	return "text-slate-500"
+}
+
+func dueText(it ledger.OpenItem) string {
+	if it.IsOpening {
+		return "—"
+	}
+	return dateText(it.Due)
+}
+
+templ LedgerPanel(l CustomerLedger) {
+	<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+		<h2 class="text-sm font-semibold text-slate-900">Cari durum</h2>
+		<div class={ "mt-2 text-3xl font-semibold tabular-nums " + balanceClass(l.Position.Balance) }>{ money.FormatTL(l.Position.Balance) }</div>
+		<div class="text-xs text-slate-500">
+			if l.Position.Balance > 0 {
+				Müşteri bize borçlu
+			} else if l.Position.Balance < 0 {
+				Fazla ödeme var (müşteri alacaklı)
+			} else {
+				Hesap kapalı
+			}
+		</div>
+		<dl class="mt-4 space-y-1 text-sm">
+			<div class="flex justify-between"><dt class="text-slate-500">Vadesi geçmiş</dt><dd class={ "tabular-nums " + balanceClass(l.Position.Overdue) }>{ money.FormatTL(l.Position.Overdue) }</dd></div>
+			<div class="flex justify-between"><dt class="text-slate-500">Son tahsilat</dt>
+				<dd>
+					if l.Position.LastPayment != nil {
+						{ dateText(*l.Position.LastPayment) } · { money.FormatTL(l.Position.LastPaymentAmount) }
+					} else {
+						—
+					}
+				</dd>
+			</div>
+		</dl>
+		<div class="mt-4 flex flex-wrap gap-2">
+			<a href={ templ.SafeURL("/payments/new?customer=" + l.CustomerID) } class={ btnPrimary }>Tahsilat gir</a>
+			<a href={ templ.SafeURL("/customers/" + l.CustomerID + "/statement") } class={ btnSecondary }>Ekstre</a>
+		</div>
+		if len(l.Position.OpenItems) > 0 {
+			<h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Açık kalemler</h3>
+			<ul class="mt-2 divide-y divide-slate-100 text-sm">
+				for _, it := range l.Position.OpenItems {
+					<li class="flex items-center justify-between gap-3 py-2">
+						<div>
+							if it.IsOpening {
+								<span>{ it.Number }</span>
+							} else {
+								<a href={ templ.SafeURL("/invoices/" + it.ID.String()) } class="font-mono text-xs underline">{ it.Number }</a>
+							}
+							<div class={ "text-xs " + overdueClass(it) }>Vade { dueText(it) } · { overdueText(it) }</div>
+						</div>
+						<div class="text-right tabular-nums">{ money.FormatTL(it.Remaining) }</div>
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+templ PaymentsPage(p PageData, l PaymentList) {
+	@Layout(p) {
+		<div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+			<form method="get" action="/payments" class="flex flex-wrap items-end gap-3">
+				<div>
+					<label for="q" class="block text-xs font-medium text-slate-600">Müşteri</label>
+					<input id="q" name="q" value={ l.Query } placeholder="Ara…" class={ inputClass }/>
+				</div>
+				<div>
+					<label for="from" class="block text-xs font-medium text-slate-600">Başlangıç</label>
+					<input id="from" name="from" type="date" value={ l.From } class={ inputClass }/>
+				</div>
+				<div>
+					<label for="to" class="block text-xs font-medium text-slate-600">Bitiş</label>
+					<input id="to" name="to" type="date" value={ l.To } class={ inputClass }/>
+				</div>
+				<button type="submit" class={ btnSecondary }>Süz</button>
+			</form>
+			<a href="/payments/new" class={ btnPrimary }>+ Tahsilat gir</a>
+		</div>
+		<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+			<table class="min-w-full text-sm">
+				<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+					<tr>
+						<th class="px-4 py-3">Tarih</th>
+						<th class="px-4 py-3">Müşteri</th>
+						<th class="px-4 py-3">Yöntem</th>
+						<th class="px-4 py-3">Açıklama</th>
+						<th class="px-4 py-3 text-right">Tutar</th>
+						<th class="px-4 py-3"></th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-100">
+					for _, it := range l.Items {
+						<tr>
+							<td class="px-4 py-2.5">{ dateText(it.Date) }</td>
+							<td class="px-4 py-2.5"><a class="underline" href={ templ.SafeURL("/customers/" + it.CustomerID.String()) }>{ it.CustomerName }</a></td>
+							<td class="px-4 py-2.5">{ it.Method.Label() }</td>
+							<td class="px-4 py-2.5 text-slate-600">{ it.Note }</td>
+							<td class="px-4 py-2.5 text-right font-medium tabular-nums">{ money.FormatTL(it.Amount) }</td>
+							<td class="px-4 py-2.5 text-right">
+								<form method="post" action={ templ.SafeURL("/payments/" + it.ID.String() + "/delete") } onsubmit="return confirm('Bu tahsilat silinsin mi? Müşterinin bakiyesi buna göre değişir.')">
+									<button type="submit" class="text-xs text-red-700 underline">Sil</button>
+								</form>
+							</td>
+						</tr>
+					}
+					if len(l.Items) == 0 {
+						<tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">Tahsilat bulunamadı.</td></tr>
+					}
+				</tbody>
+				if len(l.Items) > 0 {
+					<tfoot class="bg-slate-50 text-sm font-semibold">
+						<tr><td colspan="4" class="px-4 py-3 text-right">Toplam ({ fmt.Sprint(l.Total) } kayıt)</td><td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(l.SumAll) }</td><td></td></tr>
+					</tfoot>
+				}
+			</table>
+		</div>
+		if l.PageCount > 1 {
+			<div class="mt-4 flex items-center justify-between text-sm text-slate-600">
+				<span>Sayfa { fmt.Sprint(l.Page) } / { fmt.Sprint(l.PageCount) }</span>
+				<div class="flex gap-2">
+					if l.Page > 1 {
+						<a href={ templ.SafeURL(pageLink("/payments", l.Query, l.From, l.To, l.Page-1)) } class={ btnSecondary }>← Önceki</a>
+					}
+					if l.Page < l.PageCount {
+						<a href={ templ.SafeURL(pageLink("/payments", l.Query, l.From, l.To, l.Page+1)) } class={ btnSecondary }>Sonraki →</a>
+					}
+				</div>
+			</div>
+		}
+	}
+}
+
+templ PaymentFormPage(p PageData, f PaymentForm) {
+	@Layout(p) {
+		<form method="post" action="/payments" class="max-w-xl space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+			if len(f.Errors) > 0 {
+				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
+			}
+			<div>
+				<label for="customer_id" class="block text-sm font-medium text-slate-700">Müşteri</label>
+				<select
+					id="customer_id"
+					name="customer_id"
+					class={ inputClass }
+					hx-get="/payments/open-items"
+					hx-trigger="change"
+					hx-target="#open-items"
+					hx-swap="innerHTML"
+				>
+					<option value="">Seçin…</option>
+					for _, c := range f.Customers {
+						<option value={ c.ID.String() } selected?={ c.ID.String() == f.CustomerID }>{ c.Name }</option>
+					}
+				</select>
+				if f.Errors["customer_id"] != "" {
+					<p class="mt-1 text-sm text-red-600">{ f.Errors["customer_id"] }</p>
+				}
+			</div>
+			<div class="grid gap-4 sm:grid-cols-2">
+				<div>
+					<label for="paid_at" class="block text-sm font-medium text-slate-700">Tarih</label>
+					<input id="paid_at" name="paid_at" type="date" value={ f.Date } class={ inputClass }/>
+					if f.Errors["paid_at"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["paid_at"] }</p>
+					}
+				</div>
+				<div>
+					<label for="amount" class="block text-sm font-medium text-slate-700">Tutar (₺)</label>
+					<input id="amount" name="amount" inputmode="decimal" value={ f.Amount } placeholder="1.234,56" class={ inputClass }/>
+					if f.Errors["amount"] != "" {
+						<p class="mt-1 text-sm text-red-600">{ f.Errors["amount"] }</p>
+					}
+				</div>
+			</div>
+			<div>
+				<label for="method" class="block text-sm font-medium text-slate-700">Ödeme yöntemi</label>
+				<select id="method" name="method" class={ inputClass }>
+					for _, m := range payment.Methods {
+						<option value={ string(m) } selected?={ string(m) == f.Method }>{ m.Label() }</option>
+					}
+				</select>
+				if f.Errors["method"] != "" {
+					<p class="mt-1 text-sm text-red-600">{ f.Errors["method"] }</p>
+				}
+			</div>
+			<div id="open-items">
+				@OpenItemsSelect(f.Open, f.InvoiceID)
+			</div>
+			<div>
+				<label for="note" class="block text-sm font-medium text-slate-700">Açıklama</label>
+				<input id="note" name="note" value={ f.Note } class={ inputClass }/>
+				if f.Errors["note"] != "" {
+					<p class="mt-1 text-sm text-red-600">{ f.Errors["note"] }</p>
+				}
+			</div>
+			<div class="flex gap-3 pt-2">
+				<button type="submit" class={ btnPrimary }>Kaydet</button>
+				<a href="/payments" class={ btnSecondary }>Vazgeç</a>
+			</div>
+		</form>
+	}
+}
+
+// OpenItemsSelect lets the user tie the payment to one open invoice (optional; otherwise FIFO applies).
+templ OpenItemsSelect(items []ledger.OpenItem, selected string) {
+	if len(items) > 0 {
+		<label for="invoice_id" class="block text-sm font-medium text-slate-700">Hangi faturaya mahsup? (isteğe bağlı)</label>
+		<select id="invoice_id" name="invoice_id" class={ inputClass }>
+			<option value="">Otomatik: en eski borçtan başla</option>
+			for _, it := range items {
+				if !it.IsOpening {
+					<option value={ it.ID.String() } selected?={ it.ID.String() == selected }>{ it.Number } — kalan { money.FormatTL(it.Remaining) }</option>
+				}
+			}
+		</select>
+	}
+}
+
+templ StatementPageView(p PageData, s StatementPage) {
+	@Layout(p) {
+		<form method="get" class="mb-4 flex flex-wrap items-end gap-3 print:hidden">
+			<div>
+				<label for="from" class="block text-xs font-medium text-slate-600">Başlangıç</label>
+				<input id="from" name="from" type="date" value={ s.From } class={ inputClass }/>
+			</div>
+			<div>
+				<label for="to" class="block text-xs font-medium text-slate-600">Bitiş</label>
+				<input id="to" name="to" type="date" value={ s.To } class={ inputClass }/>
+			</div>
+			<button type="submit" class={ btnSecondary }>Göster</button>
+			<button type="button" class={ btnSecondary } onclick="window.print()">Yazdır</button>
+			<a href={ templ.SafeURL("/customers/" + s.CustomerID) } class="text-sm underline">Müşteriye dön</a>
+		</form>
+		<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+			<table class="min-w-full text-sm">
+				<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+					<tr>
+						<th class="px-4 py-3">Tarih</th>
+						<th class="px-4 py-3">Hareket</th>
+						<th class="px-4 py-3">Belge / Yöntem</th>
+						<th class="px-4 py-3 text-right">Borç</th>
+						<th class="px-4 py-3 text-right">Alacak</th>
+						<th class="px-4 py-3 text-right">Bakiye</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-100">
+					for _, r := range s.Rows {
+						<tr>
+							<td class="px-4 py-2.5">
+								if !r.Date.IsZero() {
+									{ dateText(r.Date) }
+								}
+							</td>
+							<td class="px-4 py-2.5">{ rowKindLabel(r) }</td>
+							<td class="px-4 py-2.5">
+								if r.Kind == ledger.RowInvoice {
+									<a class="font-mono text-xs underline" href={ templ.SafeURL("/invoices/" + r.ID.String()) }>{ r.Ref }</a>
+								} else {
+									{ r.Ref }
+								}
+								if r.Note != "" {
+									<span class="text-slate-500"> · { r.Note }</span>
+								}
+							</td>
+							<td class="px-4 py-2.5 text-right tabular-nums">{ debitText(r.Debit) }</td>
+							<td class="px-4 py-2.5 text-right tabular-nums">{ debitText(r.Credit) }</td>
+							<td class={ "px-4 py-2.5 text-right font-medium tabular-nums " + balanceClass(r.Balance) }>{ money.FormatTL(r.Balance) }</td>
+						</tr>
+					}
+				</tbody>
+				<tfoot class="bg-slate-50 text-sm font-semibold">
+					<tr>
+						<td colspan="3" class="px-4 py-3 text-right">Dönem toplamı</td>
+						<td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(s.TotalDebit) }</td>
+						<td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(s.TotalCredit) }</td>
+						<td class={ "px-4 py-3 text-right tabular-nums " + balanceClass(s.Position.Balance) }>{ money.FormatTL(s.Position.Balance) }</td>
+					</tr>
+				</tfoot>
+			</table>
+		</div>
+	}
+}

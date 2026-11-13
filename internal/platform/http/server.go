@@ -17,6 +17,8 @@ import (
 
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/ledger"
+	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
 	"hesapkitap/internal/product"
@@ -35,6 +37,8 @@ type Deps struct {
 	Customers *customer.Service
 	Products  *product.Service
 	Invoices  *invoice.Service
+	Payments  *payment.Service
+	Ledger    ledger.Source
 }
 
 type server struct {
@@ -96,14 +100,12 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "GET /invoices/{id}/pdf", authed(s.invoicePDF))
 	route(app, "POST /invoices/{id}/share", authed(s.invoiceShare))
 	route(app, "POST /invoices/{id}/cancel", authed(s.invoiceCancel))
-	for _, pg := range []struct{ path, key, title, phase string }{
-		{"/payments", "payments", "Tahsilatlar", "Faz 6"},
-	} {
-		phase := pg.phase
-		route(app, "GET "+pg.path, s.requireAuth(s.page(pg.key, pg.title, func(p views.PageData) templComponent {
-			return views.Placeholder(p, phase)
-		})))
-	}
+	route(app, "GET /payments", authed(s.paymentList))
+	route(app, "GET /payments/new", authed(s.paymentNew))
+	route(app, "GET /payments/open-items", authed(s.paymentOpenItems))
+	route(app, "POST /payments", authed(s.paymentCreate))
+	route(app, "POST /payments/{id}/delete", authed(s.paymentDelete))
+	route(app, "GET /customers/{id}/statement", authed(s.customerStatement))
 	route(app, "/", s.requireAuth(s.page("", "Sayfa bulunamadı", func(p views.PageData) templComponent { return views.NotFound(p) }, http.StatusNotFound)))
 
 	cop := http.NewCrossOriginProtection()

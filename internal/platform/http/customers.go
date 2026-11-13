@@ -88,6 +88,15 @@ func (s *server) customerShow(w http.ResponseWriter, r *http.Request) {
 	f := views.CustomerForm{
 		Customer: c, OpeningBalance: money.Format(c.OpeningBalance),
 		Saved: r.URL.Query().Get("saved") == "1", ProviderReady: s.Customers.Provider != nil,
+		Paid: r.URL.Query().Get("paid") == "1",
+	}
+	if s.Ledger != nil {
+		d, err := s.Ledger.Customer(r.Context(), id)
+		if err != nil {
+			s.serverError(w, r, "cari durum okunamadı", err)
+			return
+		}
+		f.Ledger = &views.CustomerLedger{CustomerID: id.String(), Position: d.Position(today())}
 	}
 	render(w, r, http.StatusOK, views.CustomerFormPage(s.pageData(r, "customers", c.Name), f))
 }

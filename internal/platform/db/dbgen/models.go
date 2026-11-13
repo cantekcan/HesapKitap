@@ -65,6 +65,17 @@ type InvoiceLine struct {
 	TaxPercent    int32
 }
 
+type Payment struct {
+	ID         uuid.UUID
+	CustomerID uuid.UUID
+	PaidAt     pgtype.Date
+	Amount     int64
+	Method     string
+	Note       string
+	InvoiceID  uuid.NullUUID
+	CreatedAt  pgtype.Timestamptz
+}
+
 type Product struct {
 	ID         uuid.UUID
 	Code       string
