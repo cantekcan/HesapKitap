@@ -14,6 +14,7 @@ import (
 	"golang.org/x/term"
 
 	"hesapkitap/internal/customer"
+	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
@@ -44,12 +45,14 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 
 	// Trendyol bağlantısı ayarlıysa mükellef sorgusu açılır; değilse düğme pasif görünür.
 	var provider invoice.EInvoiceProvider
+	var incomingProvider incoming.Provider
 	if t := cfg.Trendyol; t.BaseURL != "" && t.Email != "" && t.Password != "" {
 		tc, err := trendyol.New(trendyol.Config{BaseURL: t.BaseURL, Email: t.Email, Password: t.Password, Logger: log})
 		if err != nil {
 			return fmt.Errorf("trendyol istemcisi kurulamadı: %w", err)
 		}
 		provider = tc
+		incomingProvider = trendyol.Incoming{C: tc}
 	}
 
 	// Arka plan işleri (River). Gönderim işi faturayla AYNI transaction'da insert-only istemciyle kuyruğa yazılır;
@@ -90,6 +93,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	handler, err := httpserver.New(httpserver.Deps{
 		Mailer:    mailer,
+		Incoming:  &incoming.Service{Provider: incomingProvider},
 		Customers: customers,
 		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
 		Invoices:  invoices,

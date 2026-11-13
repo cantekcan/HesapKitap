@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
 )
 
@@ -102,3 +103,48 @@ func (f *fakeProvider) SentReply(_ context.Context, _ uuid.UUID) (invoice.Reply,
 }
 
 func (f *fakeProvider) Resend(_ context.Context, _ uuid.UUID, _ string) error { return nil }
+
+// fakeIncoming is an in-memory incoming.Provider (ALTIN KURAL 4).
+type fakeIncoming struct {
+	mu      sync.Mutex
+	items   []incoming.Invoice
+	replies []struct {
+		ID     uuid.UUID
+		Answer invoice.ReplyType
+		Note   string
+	}
+	filters []incoming.Filter
+	fail    error
+}
+
+func (f *fakeIncoming) Search(_ context.Context, fl incoming.Filter) (incoming.Page, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.filters = append(f.filters, fl)
+	if f.fail != nil {
+		return incoming.Page{}, f.fail
+	}
+	var out []incoming.Invoice
+	for _, it := range f.items {
+		if fl.Scenario != "" && it.Scenario != fl.Scenario {
+			continue
+		}
+		out = append(out, it)
+	}
+	return incoming.Page{Items: out, Total: len(out), Pages: 1, Page: fl.Page}, nil
+}
+
+func (f *fakeIncoming) Reply(_ context.Context, id uuid.UUID, a invoice.ReplyType, note string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replies = append(f.replies, struct {
+		ID     uuid.UUID
+		Answer invoice.ReplyType
+		Note   string
+	}{id, a, note})
+	return nil
+}
+
+func (f *fakeIncoming) DocumentURL(_ context.Context, id uuid.UUID) (string, error) {
+	return "https://dosya.example.test/" + id.String() + ".pdf", nil
+}

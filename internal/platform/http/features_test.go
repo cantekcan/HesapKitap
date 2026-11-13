@@ -2,14 +2,20 @@ package httpserver_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"hesapkitap/internal/incoming"
+	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/platform/auth"
 )
 
 // fakeMailer records messages instead of sending them (ALTIN KURAL 4).
@@ -53,13 +59,82 @@ func TestDashboardTilesAndInvoiceTabs(t *testing.T) {
 	assert.Equal(t, http.StatusOK, a.get("/invoices?kind=x&status=y").Status)
 }
 
-func TestIncomingPageIsHonestAboutMissingAPI(t *testing.T) {
+func TestIncomingInvoicesListAndReply(t *testing.T) {
 	a := newTestApp(t)
 	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	waiting := incoming.Invoice{UUID: uuid.New(), Number: "ABC2026000000001", Sender: "Tedarik Ltd.", SenderTaxID: "1234567890",
+		Scenario: incoming.ScenarioCommercial, Payable: 123456, Currency: "TRY", IssuedAt: time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)}
+	answered := incoming.Invoice{UUID: uuid.New(), Number: "XYZ2026000000002", Sender: "Başka A.Ş.", Scenario: incoming.ScenarioCommercial,
+		Payable: 5000, Currency: "TRY", ReplyType: invoice.ReplyApproved}
+	basic := incoming.Invoice{UUID: uuid.New(), Number: "BSC2026000000003", Sender: "Temel Fatura Ltd.", Scenario: incoming.ScenarioBasic, Payable: 100}
+	a.incoming.items = []incoming.Invoice{waiting, answered, basic}
+
+	// Varsayılan sekme: yalnızca yanıt bekleyen ticari faturalar
 	p := a.get("/incoming")
 	assert.Equal(t, http.StatusOK, p.Status)
-	assert.Contains(t, p.Body, "Gelen faturalar henüz bağlanmadı")
-	assert.Contains(t, p.Body, "Gelen faturalar", "menüde")
+	assert.Contains(t, p.Body, "Tedarik Ltd.")
+	assert.Contains(t, p.Body, "1.234,56 ₺")
+	assert.Contains(t, p.Body, "Yanıt bekliyor")
+	assert.NotContains(t, p.Body, "Başka A.Ş.")
+	assert.NotContains(t, p.Body, "Temel Fatura Ltd.")
+
+	// Tümü: üçü de görünür; yanıtlanmış olanın durumu yazar
+	all := a.get("/incoming?f=all")
+	assert.Contains(t, all.Body, "Başka A.Ş.")
+	assert.Contains(t, all.Body, "Temel Fatura Ltd.")
+	assert.NotContains(t, a.get("/incoming?f=basic").Body, "Tedarik Ltd.")
+
+	// Sayılar HTMX parçasıyla gelir
+	tiles := a.get("/incoming/tiles")
+	assert.Equal(t, http.StatusOK, tiles.Status)
+	assert.Contains(t, tiles.Body, "Onay bekleyen")
+
+	// PDF: geçici bağlantıya yönlenir
+	pdf := a.get("/incoming/" + waiting.UUID.String() + "/pdf")
+	assert.Equal(t, http.StatusSeeOther, pdf.Status)
+	assert.Equal(t, "https://dosya.example.test/"+waiting.UUID.String()+".pdf", pdf.Header.Get("Location"))
+	assert.Equal(t, http.StatusNotFound, a.get("/incoming/not-a-uuid/pdf").Status)
+
+	// Yanıt: not zorunlu, yalnızca kabul/ret
+	reply := func(answer, note string) result {
+		return a.do(http.MethodPost, "/incoming/"+waiting.UUID.String()+"/reply", url.Values{"answer": {answer}, "note": {note}}, nil)
+	}
+	assert.Contains(t, reply("APPROVED", "  ").Body, "yanıt için not yazın")
+	assert.Contains(t, reply("RETURNED", "x").Body, "yanıt yalnızca kabul veya ret olabilir")
+	assert.Empty(t, a.incoming.replies, "geçersiz yanıtlar sağlayıcıya gitmedi")
+	ok := reply("DENIED", "Sipariş vermedik")
+	assert.Equal(t, http.StatusSeeOther, ok.Status)
+	require.Len(t, a.incoming.replies, 1)
+	assert.Equal(t, invoice.ReplyDenied, a.incoming.replies[0].Answer)
+	assert.Equal(t, "Sipariş vermedik", a.incoming.replies[0].Note)
+	assert.Contains(t, a.get("/audit").Body, "Gelen faturaya yanıt verildi")
+}
+
+func TestIncomingReplyNeedsPermissionAndProviderErrorsAreFriendly(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	id := uuid.New()
+	a.incoming.items = []incoming.Invoice{{UUID: id, Number: "N1", Sender: "Tedarik Ltd.", Scenario: incoming.ScenarioCommercial}}
+
+	_, err := a.authSvc.CreateUserWithAccess(t.Context(), limitedEmail, limitedPassword, false, []auth.Permission{auth.PermInvoiceDraft})
+	require.NoError(t, err)
+	u := a.other()
+	require.Equal(t, http.StatusSeeOther, u.loginAs(limitedEmail, limitedPassword).Status)
+	list := u.get("/incoming")
+	assert.Equal(t, http.StatusOK, list.Status, "görüntüleme serbest")
+	assert.Contains(t, list.Body, "Tedarik Ltd.")
+	assert.NotContains(t, list.Body, "Faturayı kabul et", "yetkisiz kullanıcı düğmeyi görmez")
+	assert.Equal(t, http.StatusForbidden,
+		u.do(http.MethodPost, "/incoming/"+id.String()+"/reply", url.Values{"answer": {"APPROVED"}, "note": {"x"}}, nil).Status)
+	assert.Empty(t, a.incoming.replies)
+	assert.Contains(t, a.get("/incoming").Body, "Faturayı kabul et", "yönetici düğmeyi görür")
+
+	// Sağlayıcı hatası: sayfa açılır, ham hata sızmaz
+	a.incoming.fail = errors.New("dial tcp 10.0.0.1: i/o timeout (gizli ayrıntı)")
+	r := a.get("/incoming")
+	assert.Equal(t, http.StatusBadGateway, r.Status)
+	assert.Contains(t, r.Body, "şu anda alınamadı")
+	assert.NotContains(t, r.Body, "gizli ayrıntı")
 }
 
 func TestEmailInvoiceLinkToCustomer(t *testing.T) {

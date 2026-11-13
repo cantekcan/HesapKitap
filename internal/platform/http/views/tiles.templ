@@ -65,7 +65,8 @@ templ kindPanel(title string, kind invoice.Kind, c report.InvoiceCounts) {
 }
 
 // InvoiceTiles is the e-Arşiv / e-Fatura / diğer block of the dashboard.
-templ InvoiceTiles(c report.InvoiceCounts) {
+// incomingOn: gelen fatura bağlantısı var; sayılar sayfa açıldıktan sonra HTMX ile gelir (Trendyol yavaşsa pano beklemez).
+templ InvoiceTiles(c report.InvoiceCounts, incomingOn bool) {
 	<div class="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 		@kindPanel("E-ARŞİV", invoice.KindEArchive, c)
 		@kindPanel("E-FATURA", invoice.KindEInvoice, c)
@@ -74,16 +75,28 @@ templ InvoiceTiles(c report.InvoiceCounts) {
 			<div class="grid grid-cols-2 gap-3 p-4">
 				@tile("Taslak faturalar", c.Count("", invoice.StatusDraft, false), listHref("", invoice.StatusDraft), "green", "document", "onay bekliyor")
 				@tile("Tüm faturalar", c.Count("", "", false), "/invoices", "gray", "document", "")
-				<a href="/incoming" class="col-span-2 flex items-center justify-between rounded-2xl bg-brand-50 p-4 text-brand-900 ring-1 ring-inset ring-brand-200 transition hover:-translate-y-0.5 hover:bg-brand-100 hover:shadow-md">
-					<div>
-						<div class="text-[11px] font-semibold uppercase tracking-wide opacity-80">Gelen e-Faturalar</div>
-						<div class="mt-1 text-xs opacity-80">Tedarikçilerden gelen faturalar</div>
+				if incomingOn {
+					<div class="col-span-2" hx-get="/incoming/tiles" hx-trigger="load" hx-swap="outerHTML">
+						@incomingLink("Gelen e-Faturalar", "Sayılar yükleniyor…")
 					</div>
-					<span class="opacity-70">
-						@Icon("arrow-down")
-					</span>
-				</a>
+				} else {
+					<div class="col-span-2">
+						@incomingLink("Gelen e-Faturalar", "Tedarikçilerden gelen faturalar")
+					</div>
+				}
 			</div>
 		</section>
 	</div>
+}
+
+templ incomingLink(title, note string) {
+	<a href="/incoming" class="flex items-center justify-between rounded-2xl bg-brand-50 p-4 text-brand-900 ring-1 ring-inset ring-brand-200 transition hover:-translate-y-0.5 hover:bg-brand-100 hover:shadow-md">
+		<div>
+			<div class="text-[11px] font-semibold uppercase tracking-wide opacity-80">{ title }</div>
+			<div class="mt-1 text-xs opacity-80">{ note }</div>
+		</div>
+		<span class="opacity-70">
+			@Icon("arrow-down")
+		</span>
+	</a>
 }

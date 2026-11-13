@@ -37,7 +37,7 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	render(w, r, http.StatusOK, views.Dashboard(s.pageData(r, "dashboard", "Pano"), d, counts, hasData))
+	render(w, r, http.StatusOK, views.Dashboard(s.pageData(r, "dashboard", "Pano"), d, counts, s.Incoming != nil && s.Incoming.Provider != nil, hasData))
 }
 
 func (s *server) reportsHub(w http.ResponseWriter, r *http.Request) {
@@ -102,8 +102,4 @@ func (s *server) reportAging(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render(w, r, http.StatusOK, views.AgingReportPage(s.pageData(r, "reports", "Alacak yaşlandırma"), report.BuildAging(all, today())))
-}
-
-func (s *server) incoming(w http.ResponseWriter, r *http.Request) {
-	render(w, r, http.StatusOK, views.IncomingPage(s.pageData(r, "incoming", "Gelen faturalar")))
 }

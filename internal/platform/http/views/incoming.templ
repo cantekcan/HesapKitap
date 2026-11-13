@@ -1,49 +1,217 @@
 package views
 
-// IncomingPage is the place of the invoices that suppliers sent us (alış faturaları).
-// The provider's incoming-invoice endpoints are not in docs/trendyol-efaturam-api.md yet, so nothing is invented here:
-// the page says what is missing instead of showing made-up numbers.
-templ IncomingPage(p PageData) {
+import (
+	"fmt"
+	"net/url"
+
+	"hesapkitap/internal/incoming"
+	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/money"
+)
+
+// IncomingFilter is one tab of the incoming-invoice page.
+type IncomingFilter struct {
+	Key   string // all | unread | awaiting | commercial | basic
+	Label string
+}
+
+// IncomingFilters are the tabs, in order.
+var IncomingFilters = []IncomingFilter{
+	{"awaiting", "Onay bekleyen ticari"},
+	{"unread", "Okunmamış"},
+	{"commercial", "Ticari"},
+	{"basic", "Temel"},
+	{"all", "Tümü"},
+}
+
+// IncomingView is the data of the incoming-invoice page.
+type IncomingView struct {
+	Items     []incoming.Invoice
+	Filter    string
+	Query     string
+	Page      int // 1'den başlar
+	PageCount int
+	Total     int
+	Message   string // hata
+	Flash     string // başarı
+	CanReply  bool
+	Connected bool
+}
+
+func incomingHref(f, q string, page int) string {
+	return fmt.Sprintf("/incoming?f=%s&q=%s&page=%d", f, url.QueryEscape(q), page)
+}
+
+func incomingScenario(s string) string {
+	switch s {
+	case incoming.ScenarioCommercial:
+		return "Ticari"
+	case incoming.ScenarioBasic:
+		return "Temel"
+	}
+	return s
+}
+
+func incomingReplyBadge(i incoming.Invoice) (string, string) {
+	switch {
+	case i.ReplyType == invoice.ReplyApproved || i.ReplyType == invoice.ReplyAutoApproved:
+		return i.ReplyType.Label(), "bg-emerald-50 text-emerald-700 ring-emerald-200"
+	case i.ReplyType == invoice.ReplyDenied || i.ReplyType == invoice.ReplyReturned:
+		return i.ReplyType.Label(), "bg-rose-50 text-rose-700 ring-rose-200"
+	case i.IsCommercial():
+		return "Yanıt bekliyor", "bg-amber-50 text-amber-800 ring-amber-200"
+	}
+	return "Yanıt gerekmez", "bg-slate-50 text-slate-600 ring-slate-200"
+}
+
+func incomingMoney(i incoming.Invoice) string {
+	if i.Currency != "" && i.Currency != "TRY" {
+		return money.Format(i.Payable) + " " + i.Currency
+	}
+	return money.FormatTL(i.Payable)
+}
+
+func incomingDate(i incoming.Invoice) string {
+	if i.IssuedAt.IsZero() {
+		return "—"
+	}
+	return dateText(i.IssuedAt)
+}
+
+func incomingPDF(i incoming.Invoice) string { return "/incoming/" + i.UUID.String() + "/pdf" }
+
+func incomingReplyConfirm(i incoming.Invoice, answer invoice.ReplyType) Confirm {
+	c := Confirm{
+		Action: "/incoming/" + i.UUID.String() + "/reply",
+		Hidden: [][2]string{{"answer", string(answer)}},
+		Note:   "Yanıt notu (karşı tarafa iletilir)",
+		Details: [][2]string{
+			{"Gönderen", i.Sender}, {"Fatura no", i.Number}, {"Tutar", incomingMoney(i)},
+		},
+	}
+	if answer == invoice.ReplyApproved {
+		c.Button, c.ButtonClass = "Kabul", "btn btn-secondary !px-2.5 !py-1 text-xs text-emerald-700"
+		c.Title, c.Yes = "Faturayı kabul et", "Kabul et"
+		c.Message = "Ticari faturayı kabul ettiğinizi gönderene bildirirsiniz. Yanıt geri alınamaz."
+	} else {
+		c.Button, c.ButtonClass = "Ret", "btn btn-secondary !px-2.5 !py-1 text-xs text-rose-700"
+		c.Title, c.Yes, c.Danger = "Faturayı reddet", "Reddet", true
+		c.Message = "Ticari faturayı reddettiğinizi gönderene bildirirsiniz. Yanıt geri alınamaz."
+		c.Ack = "Bu faturayı reddetmek istediğimi onaylıyorum."
+	}
+	return c
+}
+
+templ IncomingPage(p PageData, v IncomingView) {
 	@Layout(p) {
-		<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-			@plannedTile("Onay bekleyen ticari")
-			@plannedTile("Okunmamış e-Fatura")
-			@plannedTile("Onay bekleyen temel")
-			@plannedTile("Tüm gelen e-Faturalar")
+		if v.Flash != "" {
+			<div class="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ v.Flash }</div>
+		}
+		if v.Message != "" {
+			<div class="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ v.Message }</div>
+		}
+		if v.Connected {
+			<div hx-get="/incoming/tiles?wide=1" hx-trigger="load" hx-swap="innerHTML" class="mb-4 min-h-[5.5rem]"></div>
+		}
+		<div class="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm" role="tablist">
+			for _, t := range IncomingFilters {
+				<a href={ templ.SafeURL(incomingHref(t.Key, "", 1)) } role="tab" class={ tabClass(t.Key == v.Filter) }>{ t.Label }</a>
+			}
 		</div>
-		<div class="card mt-6 p-6">
-			<div class="flex items-start gap-4">
-				<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-					@Icon("alert")
-				</span>
-				<div>
-					<h2 class="card-title">Gelen faturalar henüz bağlanmadı</h2>
-					<p class="mt-1 text-sm leading-relaxed text-slate-600">
-						Trendyol E-Faturam'ın gelen e-Fatura uçları (listeleme, kabul/ret, PDF) elimizdeki API belgesinde yer almıyor;
-						uç noktaları tahmin ederek yazmak canlı sistemde yanlış sonuç verir. Belgenin ilgili bölümünü
-						<code class="rounded bg-slate-100 px-1 text-xs">docs/trendyol-efaturam-api.md</code> dosyasına eklediğimizde bu sayfa,
-						yukarıdaki dört kutucuğa göre filtrelenen bir tabloya dönüşecek ve tedarikçi borç takibine bağlanacak.
-					</p>
-					<ul class="mt-3 list-inside list-disc text-sm text-slate-600">
-						<li>Gelen fatura listesi ve filtreleri (onay bekleyen ticari, okunmamış, temel)</li>
-						<li>Ticari faturada kabul / ret</li>
-						<li>Gelen faturanın PDF'i ve tedarikçi bakiyesi</li>
-					</ul>
+		<form method="get" action="/incoming" class="mb-4 flex flex-wrap items-center gap-2">
+			<input type="hidden" name="f" value={ v.Filter }/>
+			<input name="q" type="search" value={ v.Query } placeholder="Gönderen ünvanı ara…" class="input !mt-0 sm:!w-80"/>
+			<button type="submit" class="btn btn-secondary">Ara</button>
+		</form>
+		if v.Connected {
+			if len(v.Items) == 0 && v.Message == "" {
+				<div class="card border-dashed p-10 text-center text-slate-500">Bu görünümde gelen fatura yok.</div>
+			} else if len(v.Items) > 0 {
+				<div class="table-card">
+					<table class="data-table">
+						<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+							<tr>
+								<th class="px-4 py-3">Tarih</th>
+								<th class="px-4 py-3">Gönderen</th>
+								<th class="hidden px-4 py-3 md:table-cell">Fatura no</th>
+								<th class="hidden px-4 py-3 sm:table-cell">Tür</th>
+								<th class="px-4 py-3 text-right">Tutar</th>
+								<th class="px-4 py-3">Yanıt</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-slate-100">
+							for _, it := range v.Items {
+								<tr data-href={ incomingPDF(it) } data-target="_blank" title="PDF'i aç">
+									<td class="px-4 py-3 text-slate-600"><a href={ templ.SafeURL(incomingPDF(it)) } target="_blank" rel="noopener" class="hover:underline">{ incomingDate(it) }</a></td>
+									<td class="px-4 py-3 font-medium text-slate-900">
+										{ it.Sender }
+										<div class="text-xs font-normal text-slate-500">{ it.SenderTaxID }</div>
+									</td>
+									<td class="hidden px-4 py-3 text-slate-600 md:table-cell">{ it.Number }</td>
+									<td class="hidden px-4 py-3 text-slate-600 sm:table-cell">{ incomingScenario(it.Scenario) }</td>
+									<td class="px-4 py-3 text-right tabular-nums">{ incomingMoney(it) }</td>
+									<td class="px-4 py-3">
+										{{ label, cls := incomingReplyBadge(it) }}
+										<span class={ "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset " + cls } title={ it.ReplyNote }>{ label }</span>
+										if it.AwaitingReply() && v.CanReply {
+											<div class="mt-1.5 flex gap-1.5">
+												@ConfirmAction(incomingReplyConfirm(it, invoice.ReplyApproved))
+												@ConfirmAction(incomingReplyConfirm(it, invoice.ReplyDenied))
+											</div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
 				</div>
+				<div class="mt-3 flex items-center justify-between text-sm text-slate-600">
+					<span>{ fmt.Sprint(v.Total) } fatura</span>
+					if v.PageCount > 1 {
+						<div class="flex items-center gap-2">
+							if v.Page > 1 {
+								<a href={ templ.SafeURL(incomingHref(v.Filter, v.Query, v.Page-1)) } class={ btnSecondary }>← Önceki</a>
+							}
+							<span>{ fmt.Sprint(v.Page) } / { fmt.Sprint(v.PageCount) }</span>
+							if v.Page < v.PageCount {
+								<a href={ templ.SafeURL(incomingHref(v.Filter, v.Query, v.Page+1)) } class={ btnSecondary }>Sonraki →</a>
+							}
+						</div>
+					}
+				</div>
+			}
+		} else {
+			<div class="card p-6 text-sm text-slate-600">Trendyol bağlantısı ayarlı olmadığı için gelen faturalar gösterilemiyor.</div>
+		}
+	}
+}
+
+// IncomingTiles are the count tiles. wide: the three-tile row of the incoming page; otherwise the block of the dashboard.
+templ IncomingTiles(c incoming.Counts, errMsg string, wide bool) {
+	if errMsg != "" {
+		<div class="col-span-2">
+			@incomingLink("Gelen e-Faturalar", errMsg)
+		</div>
+	} else if wide {
+		<div class="grid gap-4 sm:grid-cols-3">
+			@tile("Onay bekleyen ticari", c.AwaitingReply, "/incoming?f=awaiting", "amber", "clock", approxNote(c))
+			@tile("Okunmamış", c.Unread, "/incoming?f=unread", "blue", "arrow-down", "")
+			@tile("Tüm gelen e-Faturalar", c.All, "/incoming?f=all", "gray", "document", "")
+		</div>
+	} else {
+		<div class="col-span-2 grid grid-cols-2 gap-3">
+			@tile("Onay bekleyen", c.AwaitingReply, "/incoming?f=awaiting", "amber", "clock", approxNote(c))
+			@tile("Okunmamış", c.Unread, "/incoming?f=unread", "blue", "arrow-down", "")
+			<div class="col-span-2">
+				@incomingLink("Gelen e-Faturalar", fmt.Sprintf("Toplam %d fatura", c.All))
 			</div>
 		</div>
 	}
 }
 
-templ plannedTile(label string) {
-	<div class="rounded-2xl bg-slate-50 p-4 text-slate-500 ring-1 ring-inset ring-slate-200">
-		<div class="text-[11px] font-semibold uppercase leading-tight tracking-wide">{ label }</div>
-		<div class="mt-4 flex items-end justify-between">
-			<span class="opacity-50">
-				@Icon("arrow-down")
-			</span>
-			<span class="text-4xl font-semibold leading-none">—</span>
-		</div>
-		<div class="mt-2 text-right text-[11px]">API belgesi bekleniyor</div>
-	</div>
+func approxNote(c incoming.Counts) string {
+	if c.Approximate {
+		return "en az bu kadar"
+	}
+	return ""
 }

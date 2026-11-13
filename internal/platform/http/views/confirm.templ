@@ -14,10 +14,12 @@ type Confirm struct {
 	Yes         string      // onay düğmesinin yazısı
 	Danger      bool        // kırmızı ton
 	Ack         string      // doluysa kullanıcı önce bu cümleyi işaretlemeli
+	Note        string      // doluysa zorunlu bir "not" alanı gösterilir (alan adı: note); değer bu etiketle sorulur
+	Hidden      [][2]string // forma eklenen gizli alanlar (ad, değer)
 }
 
 func confirmState(c Confirm) string {
-	return fmt.Sprintf("{ open: false, ack: false, busy: false, needAck: %t }", c.Ack != "")
+	return fmt.Sprintf("{ open: false, ack: false, busy: false, note: '', needAck: %t, needNote: %t }", c.Ack != "", c.Note != "")
 }
 
 func confirmIconClass(c Confirm) string {
@@ -66,6 +68,15 @@ templ ConfirmAction(c Confirm) {
 					</dl>
 				}
 				<form method="post" action={ templ.SafeURL(c.Action) } @submit="busy = true" class="mt-5">
+					for _, h := range c.Hidden {
+						<input type="hidden" name={ h[0] } value={ h[1] }/>
+					}
+					if c.Note != "" {
+						<label class="mb-4 block text-sm font-medium text-slate-700">
+							{ c.Note }
+							<textarea name="note" rows="3" maxlength="500" required x-model="note" class="input mt-1"></textarea>
+						</label>
+					}
 					if c.Ack != "" {
 						<label class="mb-4 flex cursor-pointer items-start gap-2.5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
 							<input type="checkbox" x-model="ack" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"/>
@@ -74,7 +85,7 @@ templ ConfirmAction(c Confirm) {
 					}
 					<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
 						<button type="button" class="btn btn-secondary" @click="open = false">Vazgeç</button>
-						<button type="submit" class={ confirmYesClass(c) } :disabled="busy || (needAck && !ack)">{ c.Yes }</button>
+						<button type="submit" class={ confirmYesClass(c) } :disabled="busy || (needAck && !ack) || (needNote && note.trim() === '')">{ c.Yes }</button>
 					</div>
 				</form>
 			</div>

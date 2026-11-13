@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"hesapkitap/internal/customer"
+	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
@@ -46,6 +47,7 @@ type testApp struct {
 	invoices *invoice.Service
 	authSvc  *auth.Service
 	mailer   *fakeMailer
+	incoming *fakeIncoming
 }
 
 // customerIDOf returns the customer id of an invoice.
@@ -78,7 +80,7 @@ func newTestApp(t *testing.T) *testApp {
 	_, err = svc.CreateUser(t.Context(), testEmail, testPassword)
 	require.NoError(t, err)
 
-	provider, jobs, mailer := newFakeProvider(), &fakeEnqueuer{}, &fakeMailer{}
+	provider, jobs, mailer, inc := newFakeProvider(), &fakeEnqueuer{}, &fakeMailer{}, &fakeIncoming{}
 	customers := &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider}
 	invoiceStore := db.NewInvoiceStore(pool, jobs)
 	invoices := &invoice.Service{Store: invoiceStore, Issues: invoiceStore, Provider: provider, Recipients: customers}
@@ -95,6 +97,7 @@ func newTestApp(t *testing.T) *testApp {
 		Reports:   db.NewReportStore(dbgen.New(pool)),
 		Audit:     db.NewAuditStore(dbgen.New(pool)),
 		Mailer:    mailer,
+		Incoming:  &incoming.Service{Provider: inc},
 	})
 	require.NoError(t, err)
 
@@ -104,7 +107,7 @@ func newTestApp(t *testing.T) *testApp {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	return &testApp{
-		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices, authSvc: svc, mailer: mailer,
+		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices, authSvc: svc, mailer: mailer, incoming: inc,
 		client: &http.Client{
 			Jar:           jar,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },

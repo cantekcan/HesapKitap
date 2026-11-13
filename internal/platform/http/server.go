@@ -19,6 +19,7 @@ import (
 
 	"hesapkitap/internal/audit"
 	"hesapkitap/internal/customer"
+	"hesapkitap/internal/incoming"
 	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/ledger"
 	"hesapkitap/internal/payment"
@@ -47,8 +48,9 @@ type Deps struct {
 	Ledger    ledger.Source
 	Reports   report.Source
 	Audit     audit.Store
-	Company   pdf.Company // taslak PDF önizlemede satıcı bloğu
-	Mailer    mail.Sender // nil: e-posta gönderimi kapalı
+	Company   pdf.Company       // taslak PDF önizlemede satıcı bloğu
+	Mailer    mail.Sender       // nil: e-posta gönderimi kapalı
+	Incoming  *incoming.Service // gelen e-Faturalar; Provider nil ise sayfa "bağlantı yok" der
 }
 
 type server struct {
@@ -95,6 +97,9 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "GET /{$}", authed(s.dashboard))
 	route(app, "GET /audit", s.can(auth.PermAuditView, s.auditList))
 	route(app, "GET /incoming", authed(s.incoming))
+	route(app, "GET /incoming/tiles", authed(s.incomingTiles))
+	route(app, "GET /incoming/{id}/pdf", authed(s.incomingPDF))
+	route(app, "POST /incoming/{id}/reply", s.can(auth.PermIncomingReply, s.incomingReply))
 	route(app, "GET /reminders", s.can(auth.PermReportView, s.reminders))
 	route(app, "GET /reports", s.can(auth.PermReportView, s.reportsHub))
 	route(app, "GET /reports/sales", s.can(auth.PermReportView, s.reportSales))

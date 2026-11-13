@@ -37,6 +37,7 @@ var Labels = map[string]string{ //nolint:gosec // G101 yanlış alarm: "user.pas
 	"invoice.cancel":  "Fatura iptal edildi",
 	"invoice.resend":  "e-Fatura yeniden gönderildi",
 	"invoice.email":   "Fatura bağlantısı e-postayla gönderildi",
+	"incoming.reply":  "Gelen faturaya yanıt verildi",
 	"payment.create":  "Tahsilat girildi",
 	"payment.delete":  "Tahsilat silindi",
 	"user.create":     "Kullanıcı eklendi",
