@@ -1,0 +1,219 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/money"
+	"hesapkitap/internal/report"
+)
+
+templ BarChartSVG(c BarChart) {
+	<svg viewBox={ fmt.Sprintf("0 0 %s %s", fnum(c.W), fnum(c.H)) } class="h-auto w-full" role="img" aria-label="Son 12 ay kesilen fatura ve tahsilat">
+		for _, t := range c.Ticks {
+			<line x1={ fnum(c.Left) } x2={ fnum(c.Right) } y1={ fnum(t.Y) } y2={ fnum(t.Y) } stroke="#e2e8f0" stroke-dasharray="3 4"></line>
+			<text x={ fnum(c.Left - 8) } y={ fnum(t.Y + 4) } text-anchor="end" font-size="11" fill="#64748b">{ t.Label }</text>
+		}
+		for _, b := range c.Bars {
+			if b.H > 0.5 {
+				<rect x={ fnum(b.X) } y={ fnum(b.Y) } width={ fnum(b.W) } height={ fnum(b.H) } rx="3" fill={ barFill(b.Collected) }>
+					<title>{ b.Title }</title>
+				</rect>
+			}
+		}
+		for _, l := range c.Labels {
+			<text x={ fnum(l.X) } y={ fnum(c.PlotBottom + 20) } text-anchor="middle" font-size="11" fill="#64748b">{ l.Text }</text>
+		}
+	</svg>
+}
+
+func barFill(collected bool) string {
+	if collected {
+		return "#10b981"
+	}
+	return "#6366f1"
+}
+
+templ DonutSVG(segs []Segment, total int64) {
+	<svg viewBox="0 0 42 42" class="h-40 w-40" role="img" aria-label="Alacak yaşlanması">
+		<circle cx="21" cy="21" r="15.9155" fill="none" stroke="#f1f5f9" stroke-width="6"></circle>
+		for _, s := range segs {
+			<circle cx="21" cy="21" r="15.9155" fill="none" stroke={ s.Color } stroke-width="6" stroke-dasharray={ s.Dash } stroke-dashoffset={ fnum(s.Offset) }>
+				<title>{ s.Label }: { money.FormatTL(s.Value) }</title>
+			</circle>
+		}
+		<text x="21" y="20" text-anchor="middle" font-size="3.2" fill="#64748b">Açık alacak</text>
+		<text x="21" y="25" text-anchor="middle" font-size="4" font-weight="600" fill="#0f172a">{ compactTL(total) } ₺</text>
+	</svg>
+}
+
+templ kpi(label, value, tone, icon string) {
+	<div class="card p-5">
+		<div class="flex items-center justify-between">
+			<span class="stat-label">{ label }</span>
+			<span class={ "flex h-9 w-9 items-center justify-center rounded-xl " + tone }>
+				@Icon(icon)
+			</span>
+		</div>
+		<div class="stat-value">{ value }</div>
+		{ children... }
+	</div>
+}
+
+templ delta(cur, prev int64) {
+	if text, up, ok := deltaText(cur, prev); ok {
+		<div class={ "mt-1 text-xs font-medium " + deltaClass(up) }>{ text }</div>
+	} else {
+		<div class="mt-1 text-xs text-slate-400">Geçen ay verisi yok</div>
+	}
+}
+
+func deltaClass(up bool) string {
+	if up {
+		return "text-emerald-600"
+	}
+	return "text-rose-600"
+}
+
+templ Dashboard(p PageData, d report.Dashboard, hasData bool) {
+	@Layout(p) {
+		<div class="no-print mb-6 flex flex-wrap gap-3">
+			<a href="/invoices/new" class="btn btn-primary">
+				@Icon("plus")
+				Yeni fatura
+			</a>
+			<a href="/payments/new" class="btn btn-secondary">
+				@Icon("banknotes")
+				Tahsilat gir
+			</a>
+			<a href="/customers/new" class="btn btn-secondary">
+				@Icon("users")
+				Yeni müşteri
+			</a>
+		</div>
+		<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+			@kpi("Toplam alacak", money.FormatTL(d.Receivable), "bg-brand-50 text-brand-600", "banknotes") {
+				<div class="mt-1 text-xs text-slate-500">{ fmt.Sprint(d.CustomerCount) } aktif müşteri</div>
+			}
+			@kpi("Vadesi geçmiş", money.FormatTL(d.Overdue), "bg-rose-50 text-rose-600", "alert") {
+				<div class="mt-1 text-xs text-slate-500">{ fmt.Sprint(d.OverdueCount) } müşteride</div>
+			}
+			@kpi("Bu ay kesilen", money.FormatTL(d.InvoicedMonth), "bg-sky-50 text-sky-600", "document") {
+				@delta(d.InvoicedMonth, d.InvoicedPrev)
+			}
+			@kpi("Bu ay tahsilat", money.FormatTL(d.CollectedMonth), "bg-emerald-50 text-emerald-600", "check") {
+				@delta(d.CollectedMonth, d.CollectedPrev)
+			}
+		</div>
+		<div class="mt-6 grid gap-6 xl:grid-cols-3">
+			<div class="card p-5 xl:col-span-2">
+				<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+					<div>
+						<h2 class="card-title">Fatura ve tahsilat</h2>
+						<p class="text-xs text-slate-500">Son 12 ay · son 12 ay tahsilat oranı %{ fmt.Sprint(d.CollectionRatio) }</p>
+					</div>
+					<div class="flex items-center gap-4 text-xs text-slate-600">
+						<span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-brand-500"></span>Kesilen</span>
+						<span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500"></span>Tahsilat</span>
+					</div>
+				</div>
+				@BarChartSVG(NewBarChart(d.Series))
+			</div>
+			<div class="card p-5">
+				<div class="mb-4 flex items-center justify-between">
+					<h2 class="card-title">Alacak yaşlanması</h2>
+					<a href="/reports/aging" class="text-xs font-medium text-brand-600 hover:underline">Rapor</a>
+				</div>
+				@agingBlock(d.Aging)
+			</div>
+		</div>
+		<div class="mt-6 grid gap-6 xl:grid-cols-2">
+			<div class="card p-5">
+				<div class="mb-4 flex items-center justify-between">
+					<h2 class="card-title">En çok borcu olanlar</h2>
+					<a href="/reports/aging" class="text-xs font-medium text-brand-600 hover:underline">Tümü</a>
+				</div>
+				if len(d.TopDebtors) == 0 {
+					<p class="py-6 text-center text-sm text-slate-500">Şu an borcu olan müşteri yok. 🎉</p>
+				}
+				<ul class="space-y-3">
+					for _, x := range d.TopDebtors {
+						<li>
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<a href={ templ.SafeURL("/customers/" + x.CustomerID.String()) } class="truncate font-medium text-slate-800 hover:underline">{ x.Name }</a>
+								<span class="shrink-0 font-semibold tabular-nums">{ money.FormatTL(x.Balance) }</span>
+							</div>
+							<div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+								<div class="h-full rounded-full bg-brand-500" style={ "width:" + widthPct(x.Balance, d.TopDebtors[0].Balance) }></div>
+							</div>
+							if x.Overdue > 0 {
+								<div class="mt-1 text-xs text-rose-600">{ money.FormatTL(x.Overdue) } vadesi geçmiş</div>
+							}
+						</li>
+					}
+				</ul>
+			</div>
+			<div class="card p-5">
+				<h2 class="card-title mb-4">Dikkat gerektirenler</h2>
+				if len(d.Attention) == 0 {
+					<div class="flex flex-col items-center py-6 text-center text-sm text-slate-500">
+						<span class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+							@Icon("check")
+						</span>
+						Her şey yolunda. Bekleyen veya hatalı fatura yok.
+					</div>
+				}
+				<ul class="divide-y divide-slate-100">
+					for _, a := range d.Attention {
+						<li class="py-3">
+							<div class="flex items-center justify-between gap-3">
+								<a href={ templ.SafeURL("/invoices/" + a.ID.String()) } class="truncate text-sm font-medium hover:underline">{ a.Customer }</a>
+								<span class={ statusBadgeClass(a.Status) }>{ a.Status.Label() }</span>
+							</div>
+							<div class="mt-0.5 text-xs text-slate-500">{ attentionText(a) }</div>
+						</li>
+					}
+				</ul>
+			</div>
+		</div>
+		if !hasData {
+			<div class="card mt-6 p-6 text-sm text-slate-600">
+				<h2 class="card-title mb-2">Başlamak için</h2>
+				<ol class="list-decimal space-y-1 pl-5">
+					<li><a class="font-medium text-brand-600 hover:underline" href="/customers/new">Müşteri ekleyin</a> (VKN/TCKN yazınca ünvan Trendyol'dan gelir).</li>
+					<li><a class="font-medium text-brand-600 hover:underline" href="/products/new">Ürün/hizmet ekleyin</a>.</li>
+					<li><a class="font-medium text-brand-600 hover:underline" href="/invoices/new">Fatura oluşturup kesin</a>, tahsilatı girin.</li>
+				</ol>
+			</div>
+		}
+	}
+}
+
+func attentionText(a report.Attention) string {
+	t := dateText(a.Since)
+	if a.Number != "" {
+		t = a.Number + " · " + t
+	}
+	if a.Reason != "" {
+		t += " · " + a.Reason
+	}
+	return t
+}
+
+templ agingBlock(a report.AgingReport) {
+	{{ segs, total := NewDonut(a.Buckets) }}
+	if total == 0 {
+		<p class="py-8 text-center text-sm text-slate-500">Açık alacak yok.</p>
+	} else {
+		<div class="flex flex-col items-center gap-4 sm:flex-row xl:flex-col">
+			@DonutSVG(segs, total)
+			<ul class="w-full space-y-1.5 text-sm">
+				for _, s := range segs {
+					<li class="flex items-center justify-between gap-3">
+						<span class="flex items-center gap-2 text-slate-600"><span class="h-2.5 w-2.5 rounded-full" style={ "background:" + s.Color }></span>{ s.Label }</span>
+						<span class="tabular-nums text-slate-900">{ money.FormatTL(s.Value) }</span>
+					</li>
+				}
+			</ul>
+		</div>
+	}
+}

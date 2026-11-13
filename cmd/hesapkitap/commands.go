@@ -88,6 +88,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Invoices:  invoices,
 		Payments:  &payment.Service{Store: db.NewPaymentStore(dbgen.New(pool))},
 		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
+		Reports:   db.NewReportStore(dbgen.New(pool)),
 		Logger:    log,
 		Pool:      pool,
 		Sessions:  auth.NewSessionManager(pool, cfg.IsProduction()),

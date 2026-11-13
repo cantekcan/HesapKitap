@@ -12,6 +12,55 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const attentionInvoices = `-- name: AttentionInvoices :many
+select i.id, i.status, c.name as customer_name, i.invoice_number, i.last_error, i.updated_at, i.payable
+from invoices i join customers c on c.id = i.customer_id
+where i.status = 'FAILED'
+   or (i.status = 'DRAFT' and i.last_error <> '')
+   or (i.status = 'SENDING' and i.updated_at < now() - interval '10 minutes')
+order by i.updated_at desc
+limit 20
+`
+
+type AttentionInvoicesRow struct {
+	ID            uuid.UUID
+	Status        string
+	CustomerName  string
+	InvoiceNumber string
+	LastError     string
+	UpdatedAt     pgtype.Timestamptz
+	Payable       int64
+}
+
+// Dikkat gerektirenler: hatalı, reddedilip taslağa dönen ve 10 dakikadan uzun süredir gönderilemeyen faturalar.
+func (q *Queries) AttentionInvoices(ctx context.Context) ([]AttentionInvoicesRow, error) {
+	rows, err := q.db.Query(ctx, attentionInvoices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AttentionInvoicesRow
+	for rows.Next() {
+		var i AttentionInvoicesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.CustomerName,
+			&i.InvoiceNumber,
+			&i.LastError,
+			&i.UpdatedAt,
+			&i.Payable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countPayments = `-- name: CountPayments :one
 select count(*) from payments p join customers c on c.id = p.customer_id
 where ($1::text = '' or c.name ilike '%' || $1 || '%')
@@ -366,6 +415,109 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]L
 			&i.Note,
 			&i.InvoiceID,
 			&i.CustomerName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reportInvoiceLines = `-- name: ReportInvoiceLines :many
+select l.invoice_id, l.item_name, l.unit, l.quantity_milli, l.unit_price, l.discount, l.tax_percent
+from invoice_lines l join invoices i on i.id = l.invoice_id
+where i.status in ('SENDING', 'ISSUED') and (i.provider_status is null or i.provider_status not in (29, 105, 305, 405))
+  and i.issue_date >= $1::date and i.issue_date <= $2::date
+order by l.invoice_id, l.position
+`
+
+type ReportInvoiceLinesParams struct {
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+}
+
+type ReportInvoiceLinesRow struct {
+	InvoiceID     uuid.UUID
+	ItemName      string
+	Unit          string
+	QuantityMilli int64
+	UnitPrice     int64
+	Discount      int64
+	TaxPercent    int32
+}
+
+func (q *Queries) ReportInvoiceLines(ctx context.Context, arg ReportInvoiceLinesParams) ([]ReportInvoiceLinesRow, error) {
+	rows, err := q.db.Query(ctx, reportInvoiceLines, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReportInvoiceLinesRow
+	for rows.Next() {
+		var i ReportInvoiceLinesRow
+		if err := rows.Scan(
+			&i.InvoiceID,
+			&i.ItemName,
+			&i.Unit,
+			&i.QuantityMilli,
+			&i.UnitPrice,
+			&i.Discount,
+			&i.TaxPercent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reportInvoices = `-- name: ReportInvoices :many
+select i.id, i.customer_id, c.name as customer_name, i.invoice_number, i.issue_date, i.due_date, i.payable
+from invoices i join customers c on c.id = i.customer_id
+where i.status in ('SENDING', 'ISSUED') and (i.provider_status is null or i.provider_status not in (29, 105, 305, 405))
+  and i.issue_date >= $1::date and i.issue_date <= $2::date
+order by i.issue_date, i.created_at
+`
+
+type ReportInvoicesParams struct {
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+}
+
+type ReportInvoicesRow struct {
+	ID            uuid.UUID
+	CustomerID    uuid.UUID
+	CustomerName  string
+	InvoiceNumber string
+	IssueDate     pgtype.Date
+	DueDate       pgtype.Date
+	Payable       int64
+}
+
+// Dönemsel satış raporu: cariye işlenen faturalar ve kalemleri (KDV kırılımı InvoiceCalculator ile hesaplanır).
+func (q *Queries) ReportInvoices(ctx context.Context, arg ReportInvoicesParams) ([]ReportInvoicesRow, error) {
+	rows, err := q.db.Query(ctx, reportInvoices, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReportInvoicesRow
+	for rows.Next() {
+		var i ReportInvoicesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.CustomerName,
+			&i.InvoiceNumber,
+			&i.IssueDate,
+			&i.DueDate,
+			&i.Payable,
 		); err != nil {
 			return nil, err
 		}

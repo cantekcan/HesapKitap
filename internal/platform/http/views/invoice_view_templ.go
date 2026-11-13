@@ -26,16 +26,17 @@ type InvoiceView struct {
 }
 
 func statusBadgeClass(s invoice.Status) string {
-	base := "rounded-full px-2.5 py-0.5 text-xs font-medium "
 	switch s {
 	case invoice.StatusIssued:
-		return base + "bg-green-100 text-green-800"
+		return "badge badge-green"
 	case invoice.StatusErrored:
-		return base + "bg-red-100 text-red-800"
+		return "badge badge-red"
 	case invoice.StatusSending:
-		return base + "bg-amber-100 text-amber-800"
+		return "badge badge-amber"
+	case invoice.StatusDraft:
+		return "badge badge-slate"
 	}
-	return base + "bg-slate-100 text-slate-700"
+	return "badge badge-slate"
 }
 
 func providerStatusText(d invoice.Draft) string {
@@ -78,7 +79,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"mt-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm\"><h2 class=\"mb-3 text-sm font-semibold text-slate-900\">Kalemler</h2><div class=\"overflow-x-auto\"><table class=\"min-w-full text-sm\"><thead class=\"text-left text-xs font-semibold uppercase tracking-wide text-slate-500\"><tr><th class=\"pb-2 pr-3\">Açıklama</th><th class=\"pb-2 pr-3 text-right\">Miktar</th><th class=\"pb-2 pr-3 text-right\">Birim fiyat</th><th class=\"pb-2 pr-3 text-right\">İndirim</th><th class=\"pb-2 pr-3 text-right\">KDV</th><th class=\"pb-2 text-right\">Tutar (KDV dahil)</th></tr></thead> <tbody class=\"divide-y divide-slate-100\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"mt-5 card p-5\"><h2 class=\"mb-3 text-sm font-semibold text-slate-900\">Kalemler</h2><div class=\"overflow-x-auto\"><table class=\"data-table\"><thead class=\"text-left text-xs font-semibold uppercase tracking-wide text-slate-500\"><tr><th class=\"pb-2 pr-3\">Açıklama</th><th class=\"pb-2 pr-3 text-right\">Miktar</th><th class=\"pb-2 pr-3 text-right\">Birim fiyat</th><th class=\"pb-2 pr-3 text-right\">İndirim</th><th class=\"pb-2 pr-3 text-right\">KDV</th><th class=\"pb-2 text-right\">Tutar (KDV dahil)</th></tr></thead> <tbody class=\"divide-y divide-slate-100\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -90,7 +91,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(l.ItemName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 59, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 60, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -103,7 +104,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(l.Quantity.String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 60, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 61, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -116,7 +117,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(product.UnitLabel(l.Unit))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 60, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 61, Col: 105}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -129,7 +130,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(l.UnitPrice))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 61, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 62, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -142,7 +143,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(l.Discount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 62, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 63, Col: 82}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -155,7 +156,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(l.TaxPercent))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 63, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 64, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -168,7 +169,7 @@ func InvoiceViewPage(p PageData, v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(v.Totals.Lines[i].Total))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 64, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 65, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -219,7 +220,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div id=\"status-box\" class=\"rounded-lg border border-slate-200 bg-white p-5 shadow-sm\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div id=\"status-box\" class=\"card p-5\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -231,7 +232,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/invoices/" + v.Draft.ID.String() + "/status").Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 83, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 84, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
@@ -247,14 +248,14 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if v.Flash != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(v.Flash)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 89, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 90, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -266,14 +267,14 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 			}
 		}
 		if v.Message != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(v.Message)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 92, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 93, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -331,7 +332,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft.Status.Label())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 95, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 96, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -344,7 +345,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft.Kind.Label())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 96, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 97, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -367,7 +368,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft.CustomerName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 102, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 103, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -380,7 +381,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(money.FormatTL(v.Draft.Payable))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 103, Col: 125}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 104, Col: 125}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -393,7 +394,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(dateText(v.Draft.IssueDate))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 104, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 105, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -406,7 +407,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(dateTextPtr(v.Draft.DueDate))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 105, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 106, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -419,7 +420,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft.Number)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 106, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 107, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -432,7 +433,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(providerStatusText(v.Draft))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 107, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 108, Col: 88}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -445,7 +446,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft.ETTN.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 108, Col: 129}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 109, Col: 129}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -456,14 +457,14 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if v.Draft.LastError != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<p class=\"mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900\">Son hata: ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<p class=\"mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200\">Son hata: ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft.LastError)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 111, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 112, Col: 137}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -490,7 +491,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/pdf")).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 115, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 116, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 				if templ_7745c5c3_Err != nil {
@@ -543,7 +544,7 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/invoices/" + v.Draft.ID.String() + "/share").Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 116, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 117, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 				if templ_7745c5c3_Err != nil {
@@ -593,13 +594,13 @@ func InvoiceStatusBox(v InvoiceView) templ.Component {
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/cancel")).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 118, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 119, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" onsubmit=\"return confirm('Bu e-Arşiv fatura iptal edilsin mi? İptal geri alınamaz.')\"><button type=\"submit\" class=\"rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50\">Faturayı iptal et</button></form>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" @submit=\"if (!confirm('Bu e-Arşiv fatura iptal edilsin mi? İptal geri alınamaz.')) $event.preventDefault()\"><button type=\"submit\" class=\"btn btn-danger\">Faturayı iptal et</button></form>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -643,7 +644,7 @@ func ShareLink(link, errMsg string) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(errMsg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 131, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 132, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -661,7 +662,7 @@ func ShareLink(link, errMsg string) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templruntime.NewAttributeExpression("{ l: " + jsonString(link) + ", copied: false }").Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 133, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 134, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 			if templ_7745c5c3_Err != nil {
@@ -674,13 +675,13 @@ func ShareLink(link, errMsg string) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templruntime.NewAttributeExpression(link).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 134, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 135, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"w-full max-w-xl rounded-md border border-slate-300 px-2 py-1.5 text-xs\" @focus=\"$el.select()\"> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"w-full max-w-xl rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-xs\" @focus=\"$el.select()\"> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -735,7 +736,7 @@ func ShareLink(link, errMsg string) templ.Component {
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("https://wa.me/?text=" + templURLEscape(link))).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 136, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/invoice_view.templ`, Line: 137, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 				if templ_7745c5c3_Err != nil {

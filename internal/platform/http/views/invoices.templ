@@ -95,8 +95,8 @@ templ InvoicesPage(p PageData, l InvoiceList) {
 				hx-trigger="input changed delay:300ms from:#q, change from:#status, submit"
 				hx-push-url="true"
 			>
-				<input id="q" name="q" type="search" value={ l.Query } placeholder="Müşteri adı ara…" class="w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-80"/>
-				<select id="status" name="status" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+				<input id="q" name="q" type="search" value={ l.Query } placeholder="Müşteri adı ara…" class="input !mt-0 sm:!w-80"/>
+				<select id="status" name="status" class="input !mt-0 sm:!w-48">
 					<option value="" selected?={ l.Status == "" }>Tüm durumlar</option>
 					<option value="DRAFT" selected?={ l.Status == "DRAFT" }>Taslak</option>
 				</select>
@@ -110,7 +110,7 @@ templ InvoicesPage(p PageData, l InvoiceList) {
 templ InvoiceListFragment(l InvoiceList) {
 	<div id="invoice-list">
 		if len(l.Items) == 0 {
-			<div class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+			<div class="card border-dashed p-10 text-center text-slate-500">
 				if l.Query != "" || l.Status != "" {
 					Aramanıza uyan fatura yok.
 				} else {
@@ -118,8 +118,8 @@ templ InvoiceListFragment(l InvoiceList) {
 				}
 			</div>
 		} else {
-			<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
+			<div class="table-card">
+				<table class="data-table">
 					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
 						<tr>
 							<th class="px-4 py-3">Tarih</th>
@@ -134,7 +134,7 @@ templ InvoiceListFragment(l InvoiceList) {
 							<tr class="hover:bg-slate-50">
 								<td class="px-4 py-3 text-slate-600"><a href={ templ.SafeURL("/invoices/" + s.ID.String()) } class="hover:underline">{ dateText(s.IssueDate) }</a></td>
 								<td class="px-4 py-3 font-medium text-slate-900">{ s.CustomerName }</td>
-								<td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{ s.Status.Label() }</span></td>
+								<td class="px-4 py-3"><span class={ statusBadgeClass(s.Status) }>{ s.Status.Label() }</span></td>
 								<td class="hidden px-4 py-3 text-slate-600 sm:table-cell">{ dateTextPtr(s.DueDate) }</td>
 								<td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(s.Payable) }</td>
 							</tr>
@@ -179,15 +179,15 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 			hx-trigger="input delay:300ms, recalc, load"
 		>
 			if f.Saved {
-				<div class="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">Taslak kaydedildi.</div>
+				<div class="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">Taslak kaydedildi.</div>
 			}
 			if f.Errors["issue"] != "" {
-				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{ f.Errors["issue"] }</div>
+				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ f.Errors["issue"] }</div>
 			}
 			if hasFieldErrors(f) {
-				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
+				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
 			}
-			<div class="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-3">
+			<div class="grid gap-4 card p-5 sm:grid-cols-3">
 				<div class="sm:col-span-3">
 					<label for="customer_id" class="block text-sm font-medium text-slate-700">Müşteri</label>
 					<select id="customer_id" name="customer_id" class={ inputClass }>
@@ -222,7 +222,7 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 					<textarea id="notes" name="notes" rows="2" class={ inputClass }>{ f.Notes }</textarea>
 				</div>
 			</div>
-			<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+			<div class="card p-5">
 				<div class="mb-3 flex items-center justify-between">
 					<h2 class="text-sm font-semibold text-slate-900">Kalemler</h2>
 					<button type="button" class={ btnSecondary } @click="add()">+ Kalem ekle</button>
@@ -236,7 +236,7 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 					}
 				}
 				<div class="overflow-x-auto">
-					<table class="min-w-full text-sm">
+					<table class="data-table">
 						<thead class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
 							<tr>
 								<th class="pb-2 pr-2">Ürün</th>
@@ -253,26 +253,26 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 							<template x-for="(r, i) in rows" :key="r.key">
 								<tr class="align-top">
 									<td class="pb-2 pr-2">
-										<select name="line_product" x-model="r.product" @change="pick(r)" class="w-40 rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+										<select name="line_product" x-model="r.product" @change="pick(r)" class="w-32 rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm">
 											<option value="">Elle gir</option>
 											for _, pr := range f.Products {
 												<option value={ pr.ID.String() }>{ pr.Name }</option>
 											}
 										</select>
 									</td>
-									<td class="pb-2 pr-2"><input name="line_name" x-model="r.name" class="w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm"/></td>
+									<td class="pb-2 pr-2"><input name="line_name" x-model="r.name" class="w-full min-w-40 rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm"/></td>
 									<td class="pb-2 pr-2">
-										<select name="line_unit" x-model="r.unit" class="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+										<select name="line_unit" x-model="r.unit" class="rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm">
 											for _, u := range product.Units {
 												<option value={ u.Code }>{ u.Label }</option>
 											}
 										</select>
 									</td>
-									<td class="pb-2 pr-2"><input name="line_qty" x-model="r.qty" inputmode="decimal" class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"/></td>
-									<td class="pb-2 pr-2"><input name="line_price" x-model="r.price" inputmode="decimal" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"/></td>
-									<td class="pb-2 pr-2"><input name="line_discount" x-model="r.discount" inputmode="decimal" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"/></td>
+									<td class="pb-2 pr-2"><input name="line_qty" x-model="r.qty" inputmode="decimal" class="w-16 rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-right text-sm"/></td>
+									<td class="pb-2 pr-2"><input name="line_price" x-model="r.price" inputmode="decimal" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-right text-sm"/></td>
+									<td class="pb-2 pr-2"><input name="line_discount" x-model="r.discount" inputmode="decimal" class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-right text-sm"/></td>
 									<td class="pb-2 pr-2">
-										<select name="line_tax" x-model="r.tax" class="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+										<select name="line_tax" x-model="r.tax" class="rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm">
 											for _, v := range product.TaxPercents {
 												<option value={ fmt.Sprint(v) }>%{ fmt.Sprint(v) }</option>
 											}
@@ -285,7 +285,7 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 					</table>
 				</div>
 			</div>
-			<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+			<div class="card p-5">
 				<h2 class="mb-2 text-sm font-semibold text-slate-900">Toplamlar</h2>
 				<div id="totals">
 					@InvoiceTotals(f.Totals, f.TotalsErr)
@@ -297,11 +297,11 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 			</div>
 		</form>
 		if f.ID != "" {
-			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/issue") } class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" onsubmit="return confirm('Fatura kesilsin mi? Kesildikten sonra değiştirilemez; hatalıysa yalnızca iptal veya iade faturası ile düzeltilir.')">
+			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/issue") } class="mt-6 card p-5" @submit="if (!confirm('Fatura kesilsin mi? Kesildikten sonra değiştirilemez; hatalıysa yalnızca iptal veya iade faturası ile düzeltilir.')) $event.preventDefault()">
 				<p class="mb-3 text-sm text-slate-600">Kaydettiğiniz taslak Trendyol E-Faturam'a gönderilir. Önce değişiklikleri kaydedin.</p>
 				<button type="submit" class={ btnPrimary }>Faturayı Kes</button>
 			</form>
-			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/delete") } class="mt-4" onsubmit="return confirm('Bu taslak silinsin mi?')">
+			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/delete") } class="mt-4" @submit="if (!confirm('Bu taslak silinsin mi?')) $event.preventDefault()">
 				<button type="submit" class="text-sm text-red-600 hover:underline">Taslağı sil</button>
 			</form>
 		}

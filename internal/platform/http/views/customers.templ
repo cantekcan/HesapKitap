@@ -30,9 +30,9 @@ type CustomerForm struct {
 	Ledger         *CustomerLedger
 }
 
-const inputClass = "mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-const btnPrimary = "inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-const btnSecondary = "inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+const inputClass = "input"
+const btnPrimary = "btn btn-primary"
+const btnSecondary = "btn btn-secondary"
 
 func pageHref(l CustomerList, page int) string {
 	return fmt.Sprintf("/customers?q=%s&status=%s&page=%d", templURLEscape(l.Query), l.Status, page)
@@ -66,14 +66,23 @@ templ CustomersPage(p PageData, l CustomerList) {
 				hx-trigger="input changed delay:300ms from:#q, change from:#status, submit"
 				hx-push-url="true"
 			>
-				<input id="q" name="q" type="search" value={ l.Query } placeholder="Ad, ünvan veya VKN/TCKN ara…" class="w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-80"/>
-				<select id="status" name="status" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+				<input id="q" name="q" type="search" value={ l.Query } placeholder="Ad, ünvan veya VKN/TCKN ara…" class="input !mt-0 sm:!w-80"/>
+				<select id="status" name="status" class="input !mt-0 sm:!w-48">
 					<option value="" selected?={ l.Status == "" }>Tümü</option>
 					<option value="active" selected?={ l.Status == "active" }>Aktif</option>
 					<option value="passive" selected?={ l.Status == "passive" }>Pasif</option>
 				</select>
 			</form>
-			<a href="/customers/new" class={ btnPrimary }>+ Yeni müşteri</a>
+			<div class="flex gap-2">
+				<a href="/customers.xlsx" class={ btnSecondary }>
+					@Icon("download")
+					Excel
+				</a>
+				<a href="/customers/new" class={ btnPrimary }>
+					@Icon("plus")
+					Yeni müşteri
+				</a>
+			</div>
 		</div>
 		@CustomerListFragment(l)
 	}
@@ -82,7 +91,7 @@ templ CustomersPage(p PageData, l CustomerList) {
 templ CustomerListFragment(l CustomerList) {
 	<div id="customer-list">
 		if len(l.Items) == 0 {
-			<div class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+			<div class="card border-dashed p-10 text-center text-slate-500">
 				if l.Query != "" || l.Status != "" {
 					Aramanıza uyan müşteri yok.
 				} else {
@@ -90,8 +99,8 @@ templ CustomerListFragment(l CustomerList) {
 				}
 			</div>
 		} else {
-			<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-				<table class="min-w-full divide-y divide-slate-200 text-sm">
+			<div class="table-card">
+				<table class="data-table">
 					<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
 						<tr>
 							<th class="px-4 py-3">Ad / Ünvan</th>
@@ -113,7 +122,7 @@ templ CustomerListFragment(l CustomerList) {
 								<td class="hidden px-4 py-3 font-mono text-slate-600 sm:table-cell">{ c.TaxID }</td>
 								<td class="hidden px-4 py-3 text-slate-600 md:table-cell">{ c.City }</td>
 								<td class="px-4 py-3">
-									<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{ eInvoiceBadge(c) }</span>
+									<span class="badge badge-brand">{ eInvoiceBadge(c) }</span>
 								</td>
 								<td class="hidden px-4 py-3 text-right tabular-nums md:table-cell">{ money.FormatTL(c.OpeningBalance) }</td>
 							</tr>
@@ -154,15 +163,15 @@ templ formField(label, name, value, errMsg, hint string) {
 templ CustomerFormPage(p PageData, f CustomerForm) {
 	@Layout(p) {
 		<div class="grid gap-6 lg:grid-cols-3">
-			<form method="post" action={ templ.SafeURL(customerFormAction(f)) } class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+			<form method="post" action={ templ.SafeURL(customerFormAction(f)) } class="space-y-4 card p-5 lg:col-span-2">
 				if f.Saved {
-					<div class="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">Kaydedildi.</div>
+					<div class="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">Kaydedildi.</div>
 				}
 				if f.Paid {
-					<div class="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">Tahsilat kaydedildi.</div>
+					<div class="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">Tahsilat kaydedildi.</div>
 				}
 				if len(f.Errors) > 0 {
-					<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
+					<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
 				}
 				<div>
 					<span class="block text-sm font-medium text-slate-700">Müşteri türü</span>
@@ -225,10 +234,10 @@ func customerFormAction(f CustomerForm) string {
 
 // TaxpayerPanel shows the e-Fatura status of the customer and the lookup button. res/msg are set by the lookup action.
 templ TaxpayerPanel(c customer.Customer, res *customer.TaxpayerResult, msg string, providerReady bool) {
-	<div id="taxpayer" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+	<div id="taxpayer" class="card p-5">
 		<h2 class="text-sm font-semibold text-slate-900">e-Fatura durumu</h2>
 		if msg != "" {
-			<p class="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{ msg }</p>
+			<p class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ msg }</p>
 		}
 		if res != nil && res.NeedsChoice {
 			<p class="mt-2 text-sm text-slate-700">Birden fazla posta kutusu etiketi var. Fatura hangisine gitsin?</p>
@@ -268,12 +277,12 @@ templ TaxpayerPanel(c customer.Customer, res *customer.TaxpayerResult, msg strin
 templ CustomerLookup(msg, title, kind string) {
 	<div id="lookup-result" class="mt-2 text-sm">
 		if title != "" {
-			<div x-data={ "{ t: " + jsonString(title) + ", k: " + jsonString(kind) + " }" } class="rounded-md bg-green-50 px-3 py-2 text-green-800">
+			<div x-data={ "{ t: " + jsonString(title) + ", k: " + jsonString(kind) + " }" } class="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-800">
 				e-Fatura mükellefi: <strong>{ title }</strong>
 				<button type="button" class="ml-2 underline" @click="document.getElementById('name').value = t; document.querySelector('input[name=kind][value=' + k + ']').checked = true">Forma yaz</button>
 			</div>
 		} else {
-			<div class="rounded-md bg-slate-100 px-3 py-2 text-slate-700">{ msg }</div>
+			<div class="rounded-xl bg-slate-100 px-3 py-2 text-slate-700">{ msg }</div>
 		}
 	</div>
 }

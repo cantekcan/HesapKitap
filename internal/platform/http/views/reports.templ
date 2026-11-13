@@ -1,0 +1,221 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/money"
+	"hesapkitap/internal/report"
+)
+
+// SalesPage is the period sales report.
+type SalesPage struct {
+	From, To string // yyyy-mm-dd
+	Presets  []Preset
+	Report   report.SalesReport
+}
+
+// Preset is a quick period link.
+type Preset struct {
+	Label    string
+	From, To string
+	Active   bool
+}
+
+func presetClass(active bool) string {
+	if active {
+		return "badge badge-brand !px-3 !py-1"
+	}
+	return "badge badge-slate !px-3 !py-1 hover:bg-slate-200"
+}
+
+templ ReportsHub(p PageData) {
+	@Layout(p) {
+		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+			@reportCard("Dönemsel satış", "Aylara ve KDV oranına göre kesilen faturalar. Mali müşavire gönderilecek liste.", "/reports/sales", "/reports/sales.xlsx", "chart")
+			@reportCard("Alacak yaşlandırma", "Kimin ne kadar borcu var, ne kadarı kaç gündür gecikmiş.", "/reports/aging", "/reports/aging.xlsx", "clock")
+			@reportCard("Tahsilat listesi", "Tarih aralığına göre alınan tüm tahsilatlar ve toplamı.", "/payments", "/payments.xlsx", "banknotes")
+			@reportCard("Müşteri listesi", "Tüm müşteriler, iletişim bilgileri ve güncel bakiyeleri.", "/customers", "/customers.xlsx", "users")
+		</div>
+		<p class="mt-6 text-sm text-slate-500">Müşteri ekstresi için müşteri sayfasındaki <span class="font-medium">Ekstre</span> düğmesini kullanın; oradan da Excel alabilirsiniz.</p>
+	}
+}
+
+templ reportCard(title, desc, href, xlsx, icon string) {
+	<div class="card flex flex-col p-5">
+		<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+			@Icon(icon)
+		</span>
+		<h2 class="card-title">{ title }</h2>
+		<p class="mt-1 flex-1 text-sm text-slate-500">{ desc }</p>
+		<div class="mt-4 flex gap-2">
+			<a href={ templ.SafeURL(href) } class="btn btn-primary btn-sm">Aç</a>
+			<a href={ templ.SafeURL(xlsx) } class="btn btn-secondary btn-sm">
+				@Icon("download")
+				Excel
+			</a>
+		</div>
+	</div>
+}
+
+templ SalesReportPage(p PageData, s SalesPage) {
+	@Layout(p) {
+		<form method="get" action="/reports/sales" class="no-print mb-5 card p-4">
+			<div class="flex flex-wrap items-end gap-3">
+				<div>
+					<label for="from" class="block text-xs font-medium text-slate-600">Başlangıç</label>
+					<input id="from" name="from" type="date" value={ s.From } class="input"/>
+				</div>
+				<div>
+					<label for="to" class="block text-xs font-medium text-slate-600">Bitiş</label>
+					<input id="to" name="to" type="date" value={ s.To } class="input"/>
+				</div>
+				<button type="submit" class="btn btn-primary">Göster</button>
+				<a href={ templ.SafeURL("/reports/sales.xlsx?from=" + s.From + "&to=" + s.To) } class="btn btn-secondary">
+					@Icon("download")
+					Excel
+				</a>
+				<button type="button" class="btn btn-secondary" @click="window.print()">
+					@Icon("printer")
+					Yazdır
+				</button>
+			</div>
+			<div class="mt-3 flex flex-wrap gap-2">
+				for _, pr := range s.Presets {
+					<a href={ templ.SafeURL("/reports/sales?from=" + pr.From + "&to=" + pr.To) } class={ presetClass(pr.Active) }>{ pr.Label }</a>
+				}
+			</div>
+		</form>
+		<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+			<div class="card p-5"><div class="stat-label">Fatura adedi</div><div class="stat-value">{ fmt.Sprint(s.Report.Count) }</div></div>
+			<div class="card p-5"><div class="stat-label">Matrah (KDV hariç)</div><div class="stat-value">{ money.FormatTL(s.Report.Taxable) }</div></div>
+			<div class="card p-5"><div class="stat-label">Toplam KDV</div><div class="stat-value">{ money.FormatTL(s.Report.Tax) }</div></div>
+			<div class="card p-5"><div class="stat-label">Genel toplam</div><div class="stat-value">{ money.FormatTL(s.Report.Total) }</div></div>
+		</div>
+		<div class="mt-6 grid gap-6 xl:grid-cols-5">
+			<div class="table-card xl:col-span-2">
+				<div class="border-b border-slate-100 px-5 py-3"><h2 class="card-title">KDV oranına göre</h2></div>
+				<table class="data-table">
+					<thead><tr><th class="px-5 py-3">Oran</th><th class="px-5 py-3 text-right">Matrah</th><th class="px-5 py-3 text-right">KDV</th></tr></thead>
+					<tbody>
+						for _, r := range s.Report.Rates {
+							<tr>
+								<td class="px-5 py-2.5">%{ fmt.Sprint(r.Percent) }</td>
+								<td class="px-5 py-2.5 text-right tabular-nums">{ money.FormatTL(r.Taxable) }</td>
+								<td class="px-5 py-2.5 text-right tabular-nums">{ money.FormatTL(r.Tax) }</td>
+							</tr>
+						}
+						if len(s.Report.Rates) == 0 {
+							<tr><td colspan="3" class="px-5 py-6 text-center text-slate-500">Bu dönemde fatura yok.</td></tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="table-card xl:col-span-3">
+				<div class="border-b border-slate-100 px-5 py-3"><h2 class="card-title">Aylara göre</h2></div>
+				<table class="data-table">
+					<thead><tr><th class="px-5 py-3">Ay</th><th class="px-5 py-3 text-right">Adet</th><th class="px-5 py-3 text-right">Matrah</th><th class="px-5 py-3 text-right">KDV</th><th class="px-5 py-3 text-right">Toplam</th></tr></thead>
+					<tbody>
+						for _, m := range s.Report.Months {
+							<tr>
+								<td class="px-5 py-2.5">{ monthName(m.Month) }</td>
+								<td class="px-5 py-2.5 text-right tabular-nums">{ fmt.Sprint(m.Count) }</td>
+								<td class="px-5 py-2.5 text-right tabular-nums">{ money.FormatTL(m.Taxable) }</td>
+								<td class="px-5 py-2.5 text-right tabular-nums">{ money.FormatTL(m.Tax) }</td>
+								<td class="px-5 py-2.5 text-right font-medium tabular-nums">{ money.FormatTL(m.Total) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<div class="table-card mt-6 overflow-x-auto">
+			<div class="border-b border-slate-100 px-5 py-3"><h2 class="card-title">Fatura listesi</h2></div>
+			<table class="data-table">
+				<thead><tr><th class="px-5 py-3">Tarih</th><th class="px-5 py-3">Fatura no</th><th class="px-5 py-3">Müşteri</th><th class="px-5 py-3 text-right">Matrah</th><th class="px-5 py-3 text-right">KDV</th><th class="px-5 py-3 text-right">Toplam</th></tr></thead>
+				<tbody>
+					for _, r := range s.Report.Invoices {
+						<tr>
+							<td class="px-5 py-2.5">{ dateText(r.IssueDate) }</td>
+							<td class="px-5 py-2.5 font-mono text-xs">{ r.Number }</td>
+							<td class="px-5 py-2.5">{ r.Customer }</td>
+							<td class="px-5 py-2.5 text-right tabular-nums">{ money.FormatTL(r.Taxable) }</td>
+							<td class="px-5 py-2.5 text-right tabular-nums">{ money.FormatTL(r.Tax) }</td>
+							<td class="px-5 py-2.5 text-right font-medium tabular-nums">{ money.FormatTL(r.Total) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ AgingReportPage(p PageData, a report.AgingReport) {
+	@Layout(p) {
+		<div class="no-print mb-5 flex flex-wrap gap-3">
+			<a href="/reports/aging.xlsx" class="btn btn-secondary">
+				@Icon("download")
+				Excel
+			</a>
+			<button type="button" class="btn btn-secondary" @click="window.print()">
+				@Icon("printer")
+				Yazdır
+			</button>
+		</div>
+		{{ segs, total := NewDonut(a.Buckets) }}
+		<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+			<div class="card p-5"><div class="stat-label">Toplam açık alacak</div><div class="stat-value">{ money.FormatTL(a.Total) }</div></div>
+			<div class="card p-5"><div class="stat-label">Vadesi geçmiş</div><div class="stat-value text-rose-600">{ money.FormatTL(a.Overdue) }</div></div>
+			<div class="card p-5 sm:col-span-2 xl:col-span-1">
+				<div class="stat-label mb-2">Dağılım</div>
+				if total > 0 {
+					<div class="flex h-4 overflow-hidden rounded-full bg-slate-100">
+						for _, s := range segs {
+							<div title={ s.Label + ": " + money.FormatTL(s.Value) } style={ "width:" + widthPct(s.Value, total) + ";background:" + s.Color }></div>
+						}
+					</div>
+				}
+			</div>
+		</div>
+		<div class="table-card mt-6 overflow-x-auto">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th class="px-4 py-3">Müşteri</th>
+						for i, l := range agingLabels() {
+							<th class="px-4 py-3 text-right"><span class="mr-1.5 inline-block h-2 w-2 rounded-full" style={ "background:" + bucketColor(i) }></span>{ l }</th>
+						}
+						<th class="px-4 py-3 text-right">Toplam</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range a.Rows {
+						<tr>
+							<td class="px-4 py-2.5"><a href={ templ.SafeURL("/customers/" + r.CustomerID.String()) } class="font-medium hover:underline">{ r.Name }</a></td>
+							for _, v := range r.Buckets {
+								<td class="px-4 py-2.5 text-right tabular-nums">{ debitText(v) }</td>
+							}
+							<td class="px-4 py-2.5 text-right font-semibold tabular-nums">{ money.FormatTL(r.Total) }</td>
+						</tr>
+					}
+					if len(a.Rows) == 0 {
+						<tr><td colspan="8" class="px-4 py-10 text-center text-slate-500">Açık alacak yok.</td></tr>
+					}
+				</tbody>
+				if len(a.Rows) > 0 {
+					<tfoot class="bg-slate-50 font-semibold">
+						<tr>
+							<td class="px-4 py-3">Toplam</td>
+							for _, v := range a.Buckets {
+								<td class="px-4 py-3 text-right tabular-nums">{ debitText(v) }</td>
+							}
+							<td class="px-4 py-3 text-right tabular-nums">{ money.FormatTL(a.Total) }</td>
+						</tr>
+					</tfoot>
+				}
+			</table>
+		</div>
+		<p class="mt-3 text-xs text-slate-500">Tahsilatlar en eski borçtan başlayarak (FIFO) kapatılır; faturaya bağlı tahsilatlar önce o faturaya işlenir. Vadesi girilmeyen fatura, fatura tarihinde vadesi gelmiş sayılır.</p>
+	}
+}
+
+func agingLabels() []string { return report.BucketLabels[:] }

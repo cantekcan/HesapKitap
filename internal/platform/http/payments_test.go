@@ -43,3 +43,26 @@ func TestPaymentFlow(t *testing.T) {
 	assert.Contains(t, st.Body, "Havale/EFT")
 	assert.Equal(t, http.StatusNotFound, a.get("/customers/00000000-0000-0000-0000-000000000000/statement").Status)
 }
+
+func TestDashboardReportsAndExcelExports(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+	custID := idFrom(t, a.do(http.MethodPost, "/customers", newCustomer("10000000146", "Ali Veli"), nil))
+	a.do(http.MethodPost, "/payments", url.Values{"customer_id": {custID}, "paid_at": {"2026-01-05"}, "amount": {"250,50"}, "method": {"CASH"}}, nil)
+
+	home := a.get("/")
+	assert.Equal(t, http.StatusOK, home.Status)
+	assert.Contains(t, home.Body, "Toplam alacak")
+	assert.Contains(t, home.Body, "<svg")
+
+	for _, p := range []string{"/reports", "/reports/sales?from=2026-01-01&to=2026-12-31", "/reports/aging"} {
+		r := a.get(p)
+		assert.Equal(t, http.StatusOK, r.Status, p)
+	}
+	for _, p := range []string{"/reports/sales.xlsx", "/reports/aging.xlsx", "/payments.xlsx", "/customers.xlsx", "/customers/" + custID + "/statement.xlsx"} {
+		r := a.get(p)
+		assert.Equal(t, http.StatusOK, r.Status, p)
+		assert.Contains(t, r.Header.Get("Content-Type"), "spreadsheetml", p)
+		assert.True(t, len(r.Body) > 2 && r.Body[:2] == "PK", p) // xlsx bir zip'tir
+	}
+}

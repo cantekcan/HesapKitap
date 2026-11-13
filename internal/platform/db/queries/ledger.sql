@@ -50,3 +50,28 @@ select id, customer_id, paid_at, amount, method, note, invoice_id from payments 
 
 -- name: LedgerCustomersAll :many
 select id, name, opening_balance, active from customers order by lower(name);
+
+-- Dönemsel satış raporu: cariye işlenen faturalar ve kalemleri (KDV kırılımı InvoiceCalculator ile hesaplanır).
+-- name: ReportInvoices :many
+select i.id, i.customer_id, c.name as customer_name, i.invoice_number, i.issue_date, i.due_date, i.payable
+from invoices i join customers c on c.id = i.customer_id
+where i.status in ('SENDING', 'ISSUED') and (i.provider_status is null or i.provider_status not in (29, 105, 305, 405))
+  and i.issue_date >= @from_date::date and i.issue_date <= @to_date::date
+order by i.issue_date, i.created_at;
+
+-- name: ReportInvoiceLines :many
+select l.invoice_id, l.item_name, l.unit, l.quantity_milli, l.unit_price, l.discount, l.tax_percent
+from invoice_lines l join invoices i on i.id = l.invoice_id
+where i.status in ('SENDING', 'ISSUED') and (i.provider_status is null or i.provider_status not in (29, 105, 305, 405))
+  and i.issue_date >= @from_date::date and i.issue_date <= @to_date::date
+order by l.invoice_id, l.position;
+
+-- Dikkat gerektirenler: hatalı, reddedilip taslağa dönen ve 10 dakikadan uzun süredir gönderilemeyen faturalar.
+-- name: AttentionInvoices :many
+select i.id, i.status, c.name as customer_name, i.invoice_number, i.last_error, i.updated_at, i.payable
+from invoices i join customers c on c.id = i.customer_id
+where i.status = 'FAILED'
+   or (i.status = 'DRAFT' and i.last_error <> '')
+   or (i.status = 'SENDING' and i.updated_at < now() - interval '10 minutes')
+order by i.updated_at desc
+limit 20;

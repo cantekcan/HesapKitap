@@ -4,15 +4,33 @@ type navItem struct {
 	Label string
 	Href  string
 	Key   string
+	Icon  string
 }
 
-var navItems = []navItem{
-	{Label: "Pano", Href: "/", Key: "dashboard"},
-	{Label: "Müşteriler", Href: "/customers", Key: "customers"},
-	{Label: "Ürünler", Href: "/products", Key: "products"},
-	{Label: "Faturalar", Href: "/invoices", Key: "invoices"},
-	{Label: "Tahsilatlar", Href: "/payments", Key: "payments"},
+type navGroup struct {
+	Title string
+	Items []navItem
 }
+
+var navGroups = []navGroup{
+	{Title: "", Items: []navItem{
+		{Label: "Pano", Href: "/", Key: "dashboard", Icon: "home"},
+	}},
+	{Title: "Satış", Items: []navItem{
+		{Label: "Faturalar", Href: "/invoices", Key: "invoices", Icon: "document"},
+		{Label: "Tahsilatlar", Href: "/payments", Key: "payments", Icon: "banknotes"},
+	}},
+	{Title: "Kayıtlar", Items: []navItem{
+		{Label: "Müşteriler", Href: "/customers", Key: "customers", Icon: "users"},
+		{Label: "Ürünler", Href: "/products", Key: "products", Icon: "cube"},
+	}},
+	{Title: "Analiz", Items: []navItem{
+		{Label: "Raporlar", Href: "/reports", Key: "reports", Icon: "chart"},
+	}},
+}
+
+// AssetVersion busts the browser cache of /static when the embedded files change (set by httpserver.New).
+var AssetVersion = "dev"
 
 // PageData is the data every authenticated page needs.
 type PageData struct {
@@ -22,56 +40,118 @@ type PageData struct {
 }
 
 func navClass(active bool) string {
-	base := "flex items-center rounded-md px-3 py-2 text-sm font-medium "
 	if active {
-		return base + "bg-slate-800 text-white"
+		return "nav-link nav-link-active"
 	}
-	return base + "text-slate-300 hover:bg-slate-800 hover:text-white"
+	return "nav-link"
+}
+
+func initials(email string) string {
+	if email == "" {
+		return "?"
+	}
+	r := []rune(email)
+	if r[0] >= 'a' && r[0] <= 'z' {
+		return string(r[0] - 32) // yalnızca görüntü; API değeri değil
+	}
+	return string(r[0])
 }
 
 templ head(title string) {
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<meta name="theme-color" content="#1e1b4b"/>
 	<title>{ title } · Hesap Kitap</title>
-	<link rel="stylesheet" href="/static/app.css"/>
+	<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+	<link rel="stylesheet" href={ "/static/app.css?v=" + AssetVersion }/>
 	<script src="/static/htmx.min.js" defer></script>
 	<script src="/static/alpine.min.js" defer></script>
 }
 
+// LogoMark is the Hesap Kitap mark: an open ledger with a check.
+templ LogoMark(size string) {
+	<svg class={ size } viewBox="0 0 40 40" role="img" aria-label="Hesap Kitap">
+		<defs>
+			<linearGradient id="hk-g" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+				<stop stop-color="#6366f1"></stop>
+				<stop offset="1" stop-color="#8b5cf6"></stop>
+			</linearGradient>
+		</defs>
+		<rect width="40" height="40" rx="11" fill="url(#hk-g)"></rect>
+		<path d="M8.5 12.8c3.9-1.6 7.7-1.4 11.5 1v14.6c-3.8-2.4-7.6-2.6-11.5-1z" fill="#fff" fill-opacity=".96"></path>
+		<path d="M31.5 12.8c-3.9-1.6-7.7-1.4-11.5 1v14.6c3.8-2.4 7.6-2.6 11.5-1z" fill="#fff" fill-opacity=".72"></path>
+		<path d="M12.5 21.4l3.6 3.3 7.6-8" stroke="#4f46e5" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+	</svg>
+}
+
+templ Logo() {
+	<div class="flex items-center gap-3">
+		@LogoMark("h-9 w-9 shrink-0")
+		<div class="leading-tight">
+			<div class="text-base font-semibold tracking-tight text-white">Hesap Kitap</div>
+			<div class="text-[11px] font-medium text-brand-300">Fatura &amp; Cari Takip</div>
+		</div>
+	</div>
+}
+
 templ Layout(p PageData) {
 	<!DOCTYPE html>
-	<html lang="tr" class="h-full bg-slate-50">
+	<html lang="tr" class="h-full">
 		<head>
 			@head(p.Title)
 		</head>
-		<body class="h-full text-slate-900" x-data="{ open: false }" @keydown.escape.window="open = false">
-			<div class="lg:hidden flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
-				<span class="text-base font-semibold">Hesap Kitap</span>
-				<button type="button" class="rounded-md p-2 hover:bg-slate-800" @click="open = !open" aria-label="Menüyü aç/kapat" :aria-expanded="open">
-					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+		<body class="h-full font-sans" x-data="{ open: false }" @keydown.escape.window="open = false">
+			<div class="no-print sticky top-0 z-20 flex items-center justify-between bg-brand-950 px-4 py-3 text-white lg:hidden">
+				<div class="flex items-center gap-2.5">
+					@LogoMark("h-8 w-8")
+					<span class="text-base font-semibold tracking-tight">Hesap Kitap</span>
+				</div>
+				<button type="button" class="rounded-lg p-2 hover:bg-white/10" @click="open = !open" aria-label="Menüyü aç/kapat" :aria-expanded="open">
+					@Icon("menu")
 				</button>
 			</div>
-			<div x-show="open" x-cloak class="fixed inset-0 z-20 bg-black/40 lg:hidden" @click="open = false"></div>
+			<div x-show="open" x-cloak class="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden" @click="open = false"></div>
 			<aside
-				class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col bg-slate-900 p-4 transition-transform lg:translate-x-0"
+				class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col bg-gradient-to-b from-brand-950 via-brand-950 to-slate-950 p-4 transition-transform lg:translate-x-0"
 				:class="{ '-translate-x-full': !open }"
 			>
-				<div class="mb-6 px-3 text-lg font-semibold text-white">Hesap Kitap</div>
-				<nav class="flex-1 space-y-1" aria-label="Ana menü">
-					for _, item := range navItems {
-						<a href={ templ.SafeURL(item.Href) } class={ navClass(item.Key == p.Active) }>{ item.Label }</a>
+				<div class="mb-8 px-2 pt-1">
+					@Logo()
+				</div>
+				<nav class="flex-1 space-y-5 overflow-y-auto" aria-label="Ana menü">
+					for _, g := range navGroups {
+						<div>
+							if g.Title != "" {
+								<div class="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-300/70">{ g.Title }</div>
+							}
+							<div class="space-y-1">
+								for _, item := range g.Items {
+									<a href={ templ.SafeURL(item.Href) } class={ navClass(item.Key == p.Active) } aria-current?={ item.Key == p.Active }>
+										@Icon(item.Icon)
+										{ item.Label }
+									</a>
+								}
+							</div>
+						</div>
 					}
 				</nav>
-				<div class="border-t border-slate-700 pt-4">
-					<div class="truncate px-3 pb-2 text-xs text-slate-400">{ p.Email }</div>
-					<form method="post" action="/logout">
-						<button type="submit" class="w-full rounded-md px-3 py-2 text-left text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white">Çıkış</button>
-					</form>
+				<div class="mt-4 rounded-2xl bg-white/5 p-3">
+					<div class="flex items-center gap-3">
+						<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white">{ initials(p.Email) }</div>
+						<div class="min-w-0 flex-1">
+							<div class="truncate text-xs font-medium text-white">{ p.Email }</div>
+							<form method="post" action="/logout">
+								<button type="submit" class="text-xs text-brand-300 hover:text-white">Çıkış yap</button>
+							</form>
+						</div>
+					</div>
 				</div>
 			</aside>
 			<main class="lg:pl-64">
-				<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-					<h1 class="mb-6 text-2xl font-semibold">{ p.Title }</h1>
+				<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+					<div class="mb-6 flex flex-wrap items-end justify-between gap-3">
+						<h1 class="text-2xl font-semibold tracking-tight text-slate-900">{ p.Title }</h1>
+					</div>
 					{ children... }
 				</div>
 			</main>

@@ -109,7 +109,7 @@ func dueText(it ledger.OpenItem) string {
 }
 
 templ LedgerPanel(l CustomerLedger) {
-	<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+	<div class="card p-5">
 		<h2 class="text-sm font-semibold text-slate-900">Cari durum</h2>
 		<div class={ "mt-2 text-3xl font-semibold tabular-nums " + balanceClass(l.Position.Balance) }>{ money.FormatTL(l.Position.Balance) }</div>
 		<div class="text-xs text-slate-500">
@@ -176,10 +176,19 @@ templ PaymentsPage(p PageData, l PaymentList) {
 				</div>
 				<button type="submit" class={ btnSecondary }>Süz</button>
 			</form>
-			<a href="/payments/new" class={ btnPrimary }>+ Tahsilat gir</a>
+			<div class="flex gap-2">
+				<a href={ templ.SafeURL("/payments.xlsx?q=" + templURLEscape(l.Query) + "&from=" + l.From + "&to=" + l.To) } class={ btnSecondary }>
+					@Icon("download")
+					Excel
+				</a>
+				<a href="/payments/new" class={ btnPrimary }>
+					@Icon("plus")
+					Tahsilat gir
+				</a>
+			</div>
 		</div>
-		<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-			<table class="min-w-full text-sm">
+		<div class="table-card overflow-x-auto">
+			<table class="data-table">
 				<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
 					<tr>
 						<th class="px-4 py-3">Tarih</th>
@@ -199,7 +208,7 @@ templ PaymentsPage(p PageData, l PaymentList) {
 							<td class="px-4 py-2.5 text-slate-600">{ it.Note }</td>
 							<td class="px-4 py-2.5 text-right font-medium tabular-nums">{ money.FormatTL(it.Amount) }</td>
 							<td class="px-4 py-2.5 text-right">
-								<form method="post" action={ templ.SafeURL("/payments/" + it.ID.String() + "/delete") } onsubmit="return confirm('Bu tahsilat silinsin mi? Müşterinin bakiyesi buna göre değişir.')">
+								<form method="post" action={ templ.SafeURL("/payments/" + it.ID.String() + "/delete") } @submit="if (!confirm('Bu tahsilat silinsin mi? Müşterinin bakiyesi buna göre değişir.')) $event.preventDefault()">
 									<button type="submit" class="text-xs text-red-700 underline">Sil</button>
 								</form>
 							</td>
@@ -234,9 +243,9 @@ templ PaymentsPage(p PageData, l PaymentList) {
 
 templ PaymentFormPage(p PageData, f PaymentForm) {
 	@Layout(p) {
-		<form method="post" action="/payments" class="max-w-xl space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+		<form method="post" action="/payments" class="max-w-xl space-y-4 card p-5">
 			if len(f.Errors) > 0 {
-				<div class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">Lütfen işaretli alanları düzeltin.</div>
+				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">Lütfen işaretli alanları düzeltin.</div>
 			}
 			<div>
 				<label for="customer_id" class="block text-sm font-medium text-slate-700">Müşteri</label>
@@ -330,11 +339,18 @@ templ StatementPageView(p PageData, s StatementPage) {
 				<input id="to" name="to" type="date" value={ s.To } class={ inputClass }/>
 			</div>
 			<button type="submit" class={ btnSecondary }>Göster</button>
-			<button type="button" class={ btnSecondary } onclick="window.print()">Yazdır</button>
+			<a href={ templ.SafeURL("/customers/" + s.CustomerID + "/statement.xlsx?from=" + s.From + "&to=" + s.To) } class={ btnSecondary }>
+				@Icon("download")
+				Excel
+			</a>
+			<button type="button" class={ btnSecondary } @click="window.print()">
+				@Icon("printer")
+				Yazdır
+			</button>
 			<a href={ templ.SafeURL("/customers/" + s.CustomerID) } class="text-sm underline">Müşteriye dön</a>
 		</form>
-		<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-			<table class="min-w-full text-sm">
+		<div class="table-card overflow-x-auto">
+			<table class="data-table">
 				<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
 					<tr>
 						<th class="px-4 py-3">Tarih</th>

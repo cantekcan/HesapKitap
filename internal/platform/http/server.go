@@ -3,7 +3,9 @@ package httpserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -22,6 +24,7 @@ import (
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
 	"hesapkitap/internal/product"
+	"hesapkitap/internal/report"
 )
 
 //go:embed static
@@ -39,6 +42,7 @@ type Deps struct {
 	Invoices  *invoice.Service
 	Payments  *payment.Service
 	Ledger    ledger.Source
+	Reports   report.Source
 }
 
 type server struct {
@@ -60,6 +64,10 @@ func New(d Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	if css, err := fs.ReadFile(static, "app.css"); err == nil {
+		sum := sha256.Sum256(css)
+		views.AssetVersion = hex.EncodeToString(sum[:4])
+	}
 
 	// Oturum gerektirmeyen, DB'ye dokunmayan uç noktalar.
 	root := http.NewServeMux()
@@ -73,8 +81,16 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "GET /login", http.HandlerFunc(s.loginForm))
 	route(app, "POST /login", http.HandlerFunc(s.loginSubmit))
 	route(app, "POST /logout", s.requireAuth(http.HandlerFunc(s.logout)))
-	route(app, "GET /{$}", s.requireAuth(s.page("dashboard", "Pano", func(p views.PageData) templComponent { return views.Dashboard(p) })))
 	authed := func(h http.HandlerFunc) http.Handler { return s.requireAuth(h) }
+	route(app, "GET /{$}", authed(s.dashboard))
+	route(app, "GET /reports", authed(s.reportsHub))
+	route(app, "GET /reports/sales", authed(s.reportSales))
+	route(app, "GET /reports/sales.xlsx", authed(s.salesXLSX))
+	route(app, "GET /reports/aging", authed(s.reportAging))
+	route(app, "GET /reports/aging.xlsx", authed(s.agingXLSX))
+	route(app, "GET /payments.xlsx", authed(s.paymentsXLSX))
+	route(app, "GET /customers.xlsx", authed(s.customersXLSX))
+	route(app, "GET /customers/{id}/statement.xlsx", authed(s.statementXLSX))
 	route(app, "GET /customers", authed(s.customerList))
 	route(app, "GET /customers/new", authed(s.customerNew))
 	route(app, "POST /customers/lookup", authed(s.customerLookup))

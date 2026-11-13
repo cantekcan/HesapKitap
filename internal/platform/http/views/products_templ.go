@@ -81,7 +81,7 @@ func ProductsPage(p PageData, l ProductList) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" placeholder=\"Ürün adı veya kodu ara…\" class=\"w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-80\"> <select id=\"status\" name=\"status\" class=\"rounded-md border border-slate-300 px-3 py-2 text-sm\"><option value=\"\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" placeholder=\"Ürün adı veya kodu ara…\" class=\"input !mt-0 sm:!w-80\"> <select id=\"status\" name=\"status\" class=\"input !mt-0 sm:!w-48\"><option value=\"\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -191,7 +191,7 @@ func ProductListFragment(l ProductList) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(l.Items) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"card border-dashed p-10 text-center text-slate-500\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -211,7 +211,7 @@ func ProductListFragment(l ProductList) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm\"><table class=\"min-w-full divide-y divide-slate-200 text-sm\"><thead class=\"bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500\"><tr><th class=\"px-4 py-3\">Ürün / Hizmet</th><th class=\"hidden px-4 py-3 sm:table-cell\">Kod</th><th class=\"px-4 py-3\">Birim</th><th class=\"px-4 py-3 text-right\">Birim fiyat (KDV hariç)</th><th class=\"px-4 py-3 text-right\">KDV</th></tr></thead> <tbody class=\"divide-y divide-slate-100\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"table-card\"><table class=\"data-table\"><thead class=\"bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500\"><tr><th class=\"px-4 py-3\">Ürün / Hizmet</th><th class=\"hidden px-4 py-3 sm:table-cell\">Kod</th><th class=\"px-4 py-3\">Birim</th><th class=\"px-4 py-3 text-right\">Birim fiyat (KDV hariç)</th><th class=\"px-4 py-3 text-right\">KDV</th></tr></thead> <tbody class=\"divide-y divide-slate-100\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -564,18 +564,18 @@ func ProductFormPage(p PageData, f ProductForm) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" class=\"max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" class=\"max-w-2xl space-y-4 card p-5\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if f.Saved {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<div class=\"rounded-md bg-green-50 px-3 py-2 text-sm text-green-800\">Kaydedildi.</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<div class=\"rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200\">Kaydedildi.</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			if len(f.Errors) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"rounded-md bg-red-50 px-3 py-2 text-sm text-red-800\">Lütfen işaretli alanları düzeltin.</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200\">Lütfen işaretli alanları düzeltin.</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
