@@ -5,6 +5,7 @@ type navItem struct {
 	Href  string
 	Key   string
 	Icon  string
+	Perm  string // "" = herkes, "admin" = yalnızca yönetici, aksi halde izin anahtarı
 }
 
 type navGroup struct {
@@ -25,9 +26,12 @@ var navGroups = []navGroup{
 		{Label: "Ürünler", Href: "/products", Key: "products", Icon: "cube"},
 	}},
 	{Title: "Analiz", Items: []navItem{
-		{Label: "Raporlar", Href: "/reports", Key: "reports", Icon: "chart"},
-		{Label: "Hatırlatmalar", Href: "/reminders", Key: "reminders", Icon: "bell"},
-		{Label: "İşlem geçmişi", Href: "/audit", Key: "audit", Icon: "clock"},
+		{Label: "Raporlar", Href: "/reports", Key: "reports", Icon: "chart", Perm: "report.view"},
+		{Label: "Hatırlatmalar", Href: "/reminders", Key: "reminders", Icon: "bell", Perm: "report.view"},
+		{Label: "İşlem geçmişi", Href: "/audit", Key: "audit", Icon: "clock", Perm: "audit.view"},
+	}},
+	{Title: "Yönetim", Items: []navItem{
+		{Label: "Kullanıcılar", Href: "/users", Key: "users", Icon: "shield", Perm: "admin"},
 	}},
 }
 
@@ -36,9 +40,39 @@ var AssetVersion = "dev"
 
 // PageData is the data every authenticated page needs.
 type PageData struct {
-	Title  string
-	Active string
-	Email  string
+	Title   string
+	Active  string
+	Email   string
+	IsAdmin bool
+	Perms   map[string]bool
+}
+
+// Can reports whether the current user holds the permission ("admin" = is an admin).
+func (p PageData) Can(perm string) bool {
+	switch perm {
+	case "":
+		return true
+	case "admin":
+		return p.IsAdmin
+	}
+	return p.IsAdmin || p.Perms[perm]
+}
+
+// NavGroups is the menu the current user may see; empty groups are dropped.
+func (p PageData) NavGroups() []navGroup {
+	var out []navGroup
+	for _, g := range navGroups {
+		var items []navItem
+		for _, it := range g.Items {
+			if p.Can(it.Perm) {
+				items = append(items, it)
+			}
+		}
+		if len(items) > 0 {
+			out = append(out, navGroup{Title: g.Title, Items: items})
+		}
+	}
+	return out
 }
 
 func navClass(active bool) string {
@@ -121,7 +155,7 @@ templ Layout(p PageData) {
 					@Logo()
 				</div>
 				<nav class="flex-1 space-y-5 overflow-y-auto" aria-label="Ana menü">
-					for _, g := range navGroups {
+					for _, g := range p.NavGroups() {
 						<div>
 							if g.Title != "" {
 								<div class="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-300/70">{ g.Title }</div>

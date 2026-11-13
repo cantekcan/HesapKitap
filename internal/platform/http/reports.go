@@ -4,11 +4,16 @@ import (
 	"net/http"
 	"time"
 
+	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
 	"hesapkitap/internal/report"
 )
 
 func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
+	if u, _ := auth.CurrentUser(r.Context()); !u.Can(auth.PermReportView) {
+		http.Redirect(w, r, "/invoices", http.StatusSeeOther)
+		return
+	}
 	all, err := s.Ledger.All(r.Context())
 	if err != nil {
 		s.serverError(w, r, "pano verisi okunamadı", err)

@@ -43,6 +43,21 @@ type testApp struct {
 	provider *fakeProvider
 	jobs     *fakeEnqueuer
 	invoices *invoice.Service
+	authSvc  *auth.Service
+}
+
+// other returns a second browser (own cookie jar) talking to the same server.
+func (a *testApp) other() *testApp {
+	jar, err := cookiejar.New(nil)
+	require.NoError(a.t, err)
+	b := *a
+	b.client = &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return &b
+}
+
+func (a *testApp) loginAs(email, password string) result {
+	a.t.Helper()
+	return a.do(http.MethodPost, "/login", url.Values{"email": {email}, "password": {password}}, nil)
 }
 
 func newTestApp(t *testing.T) *testApp {
@@ -78,7 +93,7 @@ func newTestApp(t *testing.T) *testApp {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	return &testApp{
-		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices,
+		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices, authSvc: svc,
 		client: &http.Client{
 			Jar:           jar,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },

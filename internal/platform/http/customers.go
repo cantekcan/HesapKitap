@@ -18,8 +18,12 @@ import (
 const customersPerPage = 20
 
 func (s *server) pageData(r *http.Request, active, title string) views.PageData {
-	u, _ := auth.SessionUser(r.Context(), s.Sessions)
-	return views.PageData{Title: title, Active: active, Email: u.Email}
+	u, _ := auth.CurrentUser(r.Context())
+	pd := views.PageData{Title: title, Active: active, Email: u.Email, IsAdmin: u.IsAdmin, Perms: map[string]bool{}}
+	for _, p := range auth.AllPermissions {
+		pd.Perms[string(p.Key)] = u.Can(p.Key)
+	}
+	return pd
 }
 
 func (s *server) serverError(w http.ResponseWriter, r *http.Request, msg string, err error) {
@@ -96,7 +100,8 @@ func (s *server) customerShow(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, "cari durum okunamadı", err)
 			return
 		}
-		f.Ledger = &views.CustomerLedger{CustomerID: id.String(), Position: d.Position(today())}
+		me, _ := auth.CurrentUser(r.Context())
+		f.Ledger = &views.CustomerLedger{CustomerID: id.String(), Position: d.Position(today()), CanPay: me.Can(auth.PermPaymentCreate)}
 	}
 	render(w, r, http.StatusOK, views.CustomerFormPage(s.pageData(r, "customers", c.Name), f))
 }

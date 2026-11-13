@@ -111,4 +111,7 @@ type User struct {
 	FailedAttempts int32
 	LockedUntil    pgtype.Timestamptz
 	CreatedAt      pgtype.Timestamptz
+	IsAdmin        bool
+	Active         bool
+	Permissions    []string
 }

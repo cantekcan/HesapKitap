@@ -53,3 +53,16 @@ func SessionUser(ctx context.Context, m *scs.SessionManager) (User, bool) {
 	}
 	return User{ID: id, Email: m.GetString(ctx, sessionEmailKey)}, true
 }
+
+type ctxUserKey struct{}
+
+// WithUser attaches the freshly loaded user (with current permissions) to the request context.
+func WithUser(ctx context.Context, u User) context.Context {
+	return context.WithValue(ctx, ctxUserKey{}, u)
+}
+
+// CurrentUser returns the user attached by the auth middleware.
+func CurrentUser(ctx context.Context) (User, bool) {
+	u, ok := ctx.Value(ctxUserKey{}).(User)
+	return u, ok
+}

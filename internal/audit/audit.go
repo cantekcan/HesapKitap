@@ -24,7 +24,7 @@ type Store interface {
 }
 
 // Labels are the Turkish names of the actions shown on the history page.
-var Labels = map[string]string{
+var Labels = map[string]string{ //nolint:gosec // G101 yanlış alarm: "user.password" bir işlem adı, şifre değil
 	"login":           "Giriş yapıldı",
 	"customer.create": "Müşteri eklendi",
 	"customer.update": "Müşteri güncellendi",
@@ -37,6 +37,9 @@ var Labels = map[string]string{
 	"invoice.cancel":  "Fatura iptal edildi",
 	"payment.create":  "Tahsilat girildi",
 	"payment.delete":  "Tahsilat silindi",
+	"user.create":     "Kullanıcı eklendi",
+	"user.update":     "Kullanıcı yetkileri güncellendi",
+	"user.password":   "Kullanıcı şifresi değiştirildi",
 }
 
 // Label returns the Turkish text of an action (the raw code if unknown).

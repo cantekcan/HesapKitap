@@ -11,10 +11,32 @@ import (
 	"github.com/google/uuid"
 )
 
+const countActiveAdmins = `-- name: CountActiveAdmins :one
+select count(*) from users where is_admin and active
+`
+
+func (q *Queries) CountActiveAdmins(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveAdmins)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countUsers = `-- name: CountUsers :one
+select count(*) from users
+`
+
+func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 insert into users (email, password_hash)
 values ($1, $2)
-returning id, email, password_hash, failed_attempts, locked_until, created_at
+returning id, email, password_hash, failed_attempts, locked_until, created_at, is_admin, active, permissions
 `
 
 type CreateUserParams struct {
@@ -32,12 +54,50 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.FailedAttempts,
 		&i.LockedUntil,
 		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Active,
+		&i.Permissions,
+	)
+	return i, err
+}
+
+const createUserWithAccess = `-- name: CreateUserWithAccess :one
+insert into users (email, password_hash, is_admin, permissions)
+values ($1, $2, $3, $4::text[])
+returning id, email, password_hash, failed_attempts, locked_until, created_at, is_admin, active, permissions
+`
+
+type CreateUserWithAccessParams struct {
+	Email        string
+	PasswordHash string
+	IsAdmin      bool
+	Permissions  []string
+}
+
+func (q *Queries) CreateUserWithAccess(ctx context.Context, arg CreateUserWithAccessParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUserWithAccess,
+		arg.Email,
+		arg.PasswordHash,
+		arg.IsAdmin,
+		arg.Permissions,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FailedAttempts,
+		&i.LockedUntil,
+		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Active,
+		&i.Permissions,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-select id, email, password_hash, failed_attempts, locked_until, created_at from users where email = $1
+select id, email, password_hash, failed_attempts, locked_until, created_at, is_admin, active, permissions from users where email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -50,12 +110,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.FailedAttempts,
 		&i.LockedUntil,
 		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Active,
+		&i.Permissions,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-select id, email, password_hash, failed_attempts, locked_until, created_at from users where id = $1
+select id, email, password_hash, failed_attempts, locked_until, created_at, is_admin, active, permissions from users where id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -68,8 +131,45 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.FailedAttempts,
 		&i.LockedUntil,
 		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Active,
+		&i.Permissions,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+select id, email, password_hash, failed_attempts, locked_until, created_at, is_admin, active, permissions from users order by is_admin desc, email
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.FailedAttempts,
+			&i.LockedUntil,
+			&i.CreatedAt,
+			&i.IsAdmin,
+			&i.Active,
+			&i.Permissions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recordFailedLogin = `-- name: RecordFailedLogin :exec
@@ -91,5 +191,40 @@ update users set failed_attempts = 0, locked_until = null where id = $1
 
 func (q *Queries) ResetLoginFailures(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, resetLoginFailures, id)
+	return err
+}
+
+const setUserPassword = `-- name: SetUserPassword :exec
+update users set password_hash = $1, failed_attempts = 0, locked_until = null where id = $2
+`
+
+type SetUserPasswordParams struct {
+	PasswordHash string
+	ID           uuid.UUID
+}
+
+func (q *Queries) SetUserPassword(ctx context.Context, arg SetUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, setUserPassword, arg.PasswordHash, arg.ID)
+	return err
+}
+
+const updateUserAccess = `-- name: UpdateUserAccess :exec
+update users set is_admin = $1, active = $2, permissions = $3::text[] where id = $4
+`
+
+type UpdateUserAccessParams struct {
+	IsAdmin     bool
+	Active      bool
+	Permissions []string
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdateUserAccess(ctx context.Context, arg UpdateUserAccessParams) error {
+	_, err := q.db.Exec(ctx, updateUserAccess,
+		arg.IsAdmin,
+		arg.Active,
+		arg.Permissions,
+		arg.ID,
+	)
 	return err
 }

@@ -38,6 +38,7 @@ type PaymentForm struct {
 type CustomerLedger struct {
 	CustomerID string
 	Position   ledger.Position
+	CanPay     bool
 }
 
 // StatementPage is the customer statement (ekstre).
@@ -134,7 +135,9 @@ templ LedgerPanel(l CustomerLedger) {
 			</div>
 		</dl>
 		<div class="mt-4 flex flex-wrap gap-2">
-			<a href={ templ.SafeURL("/payments/new?customer=" + l.CustomerID) } class={ btnPrimary }>Tahsilat gir</a>
+			if l.CanPay {
+				<a href={ templ.SafeURL("/payments/new?customer=" + l.CustomerID) } class={ btnPrimary }>Tahsilat gir</a>
+			}
 			<a href={ templ.SafeURL("/customers/" + l.CustomerID + "/statement") } class={ btnSecondary }>Ekstre</a>
 		</div>
 		if len(l.Position.OpenItems) > 0 {
@@ -177,14 +180,18 @@ templ PaymentsPage(p PageData, l PaymentList) {
 				<button type="submit" class={ btnSecondary }>Süz</button>
 			</form>
 			<div class="flex gap-2">
-				<a href={ templ.SafeURL("/payments.xlsx?q=" + templURLEscape(l.Query) + "&from=" + l.From + "&to=" + l.To) } class={ btnSecondary }>
-					@Icon("download")
-					Excel
-				</a>
-				<a href="/payments/new" class={ btnPrimary }>
-					@Icon("plus")
-					Tahsilat gir
-				</a>
+				if p.Can("report.view") {
+					<a href={ templ.SafeURL("/payments.xlsx?q=" + templURLEscape(l.Query) + "&from=" + l.From + "&to=" + l.To) } class={ btnSecondary }>
+						@Icon("download")
+						Excel
+					</a>
+				}
+				if p.Can("payment.create") {
+					<a href="/payments/new" class={ btnPrimary }>
+						@Icon("plus")
+						Tahsilat gir
+					</a>
+				}
 			</div>
 		</div>
 		<div class="table-card overflow-x-auto">
@@ -208,9 +215,11 @@ templ PaymentsPage(p PageData, l PaymentList) {
 							<td class="px-4 py-2.5 text-slate-600">{ it.Note }</td>
 							<td class="px-4 py-2.5 text-right font-medium tabular-nums">{ money.FormatTL(it.Amount) }</td>
 							<td class="px-4 py-2.5 text-right">
-								<form method="post" action={ templ.SafeURL("/payments/" + it.ID.String() + "/delete") } @submit="if (!confirm('Bu tahsilat silinsin mi? Müşterinin bakiyesi buna göre değişir.')) $event.preventDefault()">
-									<button type="submit" class="text-xs text-red-700 underline">Sil</button>
-								</form>
+								if p.Can("payment.delete") {
+									<form method="post" action={ templ.SafeURL("/payments/" + it.ID.String() + "/delete") } @submit="if (!confirm('Bu tahsilat silinsin mi? Müşterinin bakiyesi buna göre değişir.')) $event.preventDefault()">
+										<button type="submit" class="text-xs text-red-700 underline">Sil</button>
+									</form>
+								}
 							</td>
 						</tr>
 					}

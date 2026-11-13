@@ -6,6 +6,7 @@ require (
 	github.com/a-h/templ v0.3.1100
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.9.0
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/joho/godotenv v1.5.1
@@ -19,6 +20,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
 	github.com/xuri/excelize/v2 v2.11.1
 	golang.org/x/crypto v0.59.0
+	golang.org/x/image v0.44.0
 	golang.org/x/term v0.48.0
 )
 

@@ -27,8 +27,19 @@ var (
 
 // User is the authenticated user as seen by the rest of the application.
 type User struct {
-	ID    uuid.UUID
-	Email string
+	ID      uuid.UUID
+	Email   string
+	IsAdmin bool
+	Active  bool
+	Perms   map[Permission]bool
+}
+
+func toUser(u dbgen.User) User {
+	perms := make(map[Permission]bool, len(u.Permissions))
+	for _, p := range u.Permissions {
+		perms[Permission(p)] = true
+	}
+	return User{ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, Active: u.Active, Perms: perms}
 }
 
 // Service authenticates users against the database.
@@ -65,6 +76,11 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (Use
 		return User{}, fmt.Errorf("kullanıcı aranamadı: %w", err)
 	}
 
+	if !u.Active {
+		_, _ = VerifyPassword(password, s.dummyHash)
+		return User{}, ErrInvalidCredentials
+	}
+
 	if u.LockedUntil.Valid && u.LockedUntil.Time.After(s.now()) {
 		return User{}, ErrLocked
 	}
@@ -83,7 +99,7 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (Use
 	if err := s.q.ResetLoginFailures(ctx, u.ID); err != nil {
 		return User{}, fmt.Errorf("giriş sayacı sıfırlanamadı: %w", err)
 	}
-	return User{ID: u.ID, Email: u.Email}, nil
+	return toUser(u), nil
 }
 
 // UserByID loads a user, e.g. to validate a session.
@@ -92,11 +108,76 @@ func (s *Service) UserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("kullanıcı getirilemedi: %w", err)
 	}
-	return User{ID: u.ID, Email: u.Email}, nil
+	return toUser(u), nil
 }
 
-// CreateUser adds a user. There is no sign-up screen; this is used by the create-user command.
+// CreateUser adds a user (the first user ever created is an admin). There is no sign-up screen.
 func (s *Service) CreateUser(ctx context.Context, email, password string) (User, error) {
+	n, err := s.q.CountUsers(ctx)
+	if err != nil {
+		return User{}, fmt.Errorf("kullanıcılar sayılamadı: %w", err)
+	}
+	return s.CreateUserWithAccess(ctx, email, password, n == 0, nil)
+}
+
+func permStrings(perms []Permission) []string {
+	out := []string{}
+	for _, p := range perms {
+		if ValidPermission(string(p)) {
+			out = append(out, string(p))
+		}
+	}
+	return out
+}
+
+// ErrLastAdmin is returned when a change would leave the system without an active admin.
+var ErrLastAdmin = errors.New("en az bir etkin yönetici kalmalı")
+
+// ListUsers returns all users, admins first.
+func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.q.ListUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("kullanıcılar okunamadı: %w", err)
+	}
+	out := make([]User, len(rows))
+	for i, r := range rows {
+		out[i] = toUser(r)
+	}
+	return out, nil
+}
+
+// UpdateAccess changes role, active flag and permissions. The last active admin can not be demoted or disabled.
+func (s *Service) UpdateAccess(ctx context.Context, id uuid.UUID, admin, active bool, perms []Permission) error {
+	cur, err := s.q.GetUserByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("kullanıcı getirilemedi: %w", err)
+	}
+	if cur.IsAdmin && cur.Active && (!admin || !active) {
+		n, err := s.q.CountActiveAdmins(ctx)
+		if err != nil {
+			return err
+		}
+		if n <= 1 {
+			return ErrLastAdmin
+		}
+	}
+	return s.q.UpdateUserAccess(ctx, dbgen.UpdateUserAccessParams{ID: id, IsAdmin: admin, Active: active, Permissions: permStrings(perms)})
+}
+
+// SetPassword replaces a user's password (admin action) and clears any lockout.
+func (s *Service) SetPassword(ctx context.Context, id uuid.UUID, password string) error {
+	if len([]rune(password)) < MinPasswordLength {
+		return fmt.Errorf("şifre en az %d karakter olmalı", MinPasswordLength)
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return err
+	}
+	return s.q.SetUserPassword(ctx, dbgen.SetUserPasswordParams{ID: id, PasswordHash: hash})
+}
+
+// CreateUserWithAccess adds a user with a role and explicit permissions (unknown keys are ignored).
+func (s *Service) CreateUserWithAccess(ctx context.Context, email, password string, admin bool, perms []Permission) (User, error) {
 	email = NormalizeEmail(email)
 	if _, err := mail.ParseAddress(email); err != nil {
 		return User{}, fmt.Errorf("e-posta geçersiz: %w", err)
@@ -108,7 +189,7 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (User,
 	if err != nil {
 		return User{}, err
 	}
-	u, err := s.q.CreateUser(ctx, dbgen.CreateUserParams{Email: email, PasswordHash: hash})
+	u, err := s.q.CreateUserWithAccess(ctx, dbgen.CreateUserWithAccessParams{Email: email, PasswordHash: hash, IsAdmin: admin, Permissions: permStrings(perms)})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return User{}, ErrEmailTaken
@@ -116,5 +197,5 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (User,
 	if err != nil {
 		return User{}, fmt.Errorf("kullanıcı oluşturulamadı: %w", err)
 	}
-	return User{ID: u.ID, Email: u.Email}, nil
+	return toUser(u), nil
 }

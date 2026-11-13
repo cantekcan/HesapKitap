@@ -13,6 +13,7 @@ import (
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/money"
+	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
 	"hesapkitap/internal/trendyol"
 )
@@ -332,7 +333,8 @@ func (s *server) invoiceView(w http.ResponseWriter, r *http.Request, d invoice.D
 		s.serverError(w, r, "fatura toplamı hesaplanamadı", err)
 		return
 	}
-	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash}
+	me, _ := auth.CurrentUser(r.Context())
+	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash, CanCancel: me.Can(auth.PermInvoiceCancel)}
 	if boxOnly {
 		render(w, r, http.StatusOK, views.InvoiceStatusBox(v))
 		return

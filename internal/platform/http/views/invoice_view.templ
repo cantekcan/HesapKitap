@@ -12,6 +12,7 @@ import (
 type InvoiceView struct {
 	Draft   invoice.Draft
 	Totals  invoice.Totals
+	CanCancel bool // kullanıcının iptal yetkisi var mı
 	Message string // kullanıcıya gösterilecek hata veya bilgi
 	Flash   string
 }
@@ -115,7 +116,7 @@ templ InvoiceStatusBox(v InvoiceView) {
 			<div class="mt-4 flex flex-wrap items-center gap-3">
 				<a href={ templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/pdf") } target="_blank" rel="noopener" class={ btnPrimary }>PDF görüntüle</a>
 				<button type="button" hx-post={ "/invoices/" + v.Draft.ID.String() + "/share" } hx-target="#share-link" hx-swap="innerHTML" class={ btnSecondary }>Paylaşım bağlantısı</button>
-				if v.Draft.Status == invoice.StatusIssued && v.Draft.Kind == invoice.KindEArchive {
+				if v.CanCancel && v.Draft.Status == invoice.StatusIssued && v.Draft.Kind == invoice.KindEArchive {
 					<form method="post" action={ templ.SafeURL("/invoices/" + v.Draft.ID.String() + "/cancel") } @submit="if (!confirm('Bu e-Arşiv fatura iptal edilsin mi? İptal geri alınamaz.')) $event.preventDefault()">
 						<button type="submit" class="btn btn-danger">Faturayı iptal et</button>
 					</form>

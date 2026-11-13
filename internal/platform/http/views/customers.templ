@@ -74,18 +74,24 @@ templ CustomersPage(p PageData, l CustomerList) {
 				</select>
 			</form>
 			<div class="flex gap-2">
-				<a href="/customers/import" class={ btnSecondary }>
-					@Icon("plus")
-					İçe aktar
-				</a>
-				<a href="/customers.xlsx" class={ btnSecondary }>
-					@Icon("download")
-					Excel
-				</a>
-				<a href="/customers/new" class={ btnPrimary }>
-					@Icon("plus")
-					Yeni müşteri
-				</a>
+				if p.Can("data.import") {
+					<a href="/customers/import" class={ btnSecondary }>
+						@Icon("plus")
+						İçe aktar
+					</a>
+				}
+				if p.Can("report.view") {
+					<a href="/customers.xlsx" class={ btnSecondary }>
+						@Icon("download")
+						Excel
+					</a>
+				}
+				if p.Can("customer.write") {
+					<a href="/customers/new" class={ btnPrimary }>
+						@Icon("plus")
+						Yeni müşteri
+					</a>
+				}
 			</div>
 		</div>
 		@CustomerListFragment(l)
@@ -213,7 +219,9 @@ templ CustomerFormPage(p PageData, f CustomerForm) {
 				</div>
 				<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="active" value="1" checked?={ f.Customer.Active }/> Aktif</label>
 				<div class="flex gap-3 pt-2">
-					<button type="submit" class={ btnPrimary }>Kaydet</button>
+					if p.Can("customer.write") {
+						<button type="submit" class={ btnPrimary }>Kaydet</button>
+					}
 					<a href="/customers" class={ btnSecondary }>Listeye dön</a>
 				</div>
 			</form>

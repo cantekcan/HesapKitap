@@ -1,0 +1,190 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/platform/auth"
+)
+
+templ Forbidden(p PageData) {
+	@Layout(p) {
+		<div class="card mx-auto max-w-lg p-10 text-center">
+			<span class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+				@Icon("shield")
+			</span>
+			<h2 class="text-lg font-semibold">Bu işlem için yetkiniz yok</h2>
+			<p class="mt-1 text-sm text-slate-500">Gerekli yetkiyi yöneticinizden isteyebilirsiniz.</p>
+			<a href="/" class="btn btn-secondary mt-5">Panoya dön</a>
+		</div>
+	}
+}
+
+// UserList is the admin user list page.
+type UserList struct {
+	Users []auth.User
+	Self  string // giriş yapan kullanıcının e-postası
+	Flash string
+}
+
+// UserForm is the create / edit page. New users have no ID.
+type UserForm struct {
+	ID      string
+	Email   string
+	IsAdmin bool
+	Active  bool
+	Perms   map[auth.Permission]bool
+	Error   string
+	Flash   string
+	IsSelf  bool
+}
+
+func permCount(u auth.User) string {
+	if u.IsAdmin {
+		return "Tüm yetkiler"
+	}
+	return fmt.Sprintf("%d / %d yetki", len(u.PermissionList()), len(auth.AllPermissions))
+}
+
+templ UsersPage(p PageData, l UserList) {
+	@Layout(p) {
+		<div class="mb-4 flex items-center justify-between gap-3">
+			<p class="max-w-2xl text-sm text-slate-500">Yöneticiler her şeyi yapabilir ve kullanıcıları yönetir. Diğer kullanıcılar yalnızca açtığınız yetkileri kullanabilir; yetki değişikliği anında geçerli olur.</p>
+			<a href="/users/new" class="btn btn-primary shrink-0">
+				@Icon("plus")
+				Yeni kullanıcı
+			</a>
+		</div>
+		if l.Flash != "" {
+			<div class="mb-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ l.Flash }</div>
+		}
+		<div class="table-card overflow-x-auto">
+			<table class="data-table">
+				<thead><tr><th class="px-4 py-3">Kullanıcı</th><th class="px-4 py-3">Rol</th><th class="px-4 py-3">Yetkiler</th><th class="px-4 py-3">Durum</th><th class="px-4 py-3"></th></tr></thead>
+				<tbody>
+					for _, u := range l.Users {
+						<tr>
+							<td class="px-4 py-3 font-medium">
+								{ u.Email }
+								if u.Email == l.Self {
+									<span class="badge badge-slate ml-1">siz</span>
+								}
+							</td>
+							<td class="px-4 py-3">
+								if u.IsAdmin {
+									<span class="badge badge-brand">Yönetici</span>
+								} else {
+									<span class="badge badge-slate">Kullanıcı</span>
+								}
+							</td>
+							<td class="px-4 py-3 text-slate-600">{ permCount(u) }</td>
+							<td class="px-4 py-3">
+								if u.Active {
+									<span class="badge badge-green">Etkin</span>
+								} else {
+									<span class="badge badge-red">Pasif</span>
+								}
+							</td>
+							<td class="px-4 py-3 text-right"><a href={ templ.SafeURL("/users/" + u.ID.String()) } class="btn btn-secondary btn-sm">Düzenle</a></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ UserFormPage(p PageData, f UserForm) {
+	@Layout(p) {
+		<form method="post" action={ templ.SafeURL(userFormAction(f)) } class="card max-w-2xl space-y-5 p-6" x-data={ fmt.Sprintf("{ admin: %t }", f.IsAdmin) }>
+			if f.Flash != "" {
+				<div class="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-inset ring-emerald-200">{ f.Flash }</div>
+			}
+			if f.Error != "" {
+				<div class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ f.Error }</div>
+			}
+			if f.ID == "" {
+				<div>
+					<label for="email" class="block text-sm font-medium text-slate-700">E-posta</label>
+					<input id="email" name="email" type="email" value={ f.Email } required autocomplete="off" class="input"/>
+				</div>
+			} else {
+				<div>
+					<div class="text-sm font-medium text-slate-700">E-posta</div>
+					<div class="mt-1 text-sm">{ f.Email }</div>
+				</div>
+			}
+			<div>
+				<label for="password" class="block text-sm font-medium text-slate-700">
+					if f.ID == "" {
+						Şifre
+					} else {
+						Yeni şifre (değiştirmek istemiyorsanız boş bırakın)
+					}
+				</label>
+				<input id="password" name="password" type="password" autocomplete="new-password" required?={ f.ID == "" } class="input"/>
+				<p class="mt-1 text-xs text-slate-500">En az 12 karakter. Şifreyi kullanıcıya güvenli bir yolla iletin.</p>
+			</div>
+			<div class="flex flex-wrap gap-6 text-sm">
+				<label class="flex items-center gap-2">
+					<input type="checkbox" name="is_admin" value="1" x-model="admin" checked?={ f.IsAdmin } disabled?={ f.IsSelf }/>
+					<span class="font-medium">Yönetici</span> <span class="text-slate-500">(tüm yetkiler + kullanıcı yönetimi)</span>
+				</label>
+				<label class="flex items-center gap-2">
+					<input type="checkbox" name="active" value="1" checked?={ f.Active } disabled?={ f.IsSelf }/>
+					<span class="font-medium">Etkin</span>
+				</label>
+			</div>
+			if f.IsSelf {
+				<p class="text-xs text-slate-500">Kendi yöneticilik ve etkinlik durumunuzu değiştiremezsiniz (kilitlenmeyi önlemek için).</p>
+				<input type="hidden" name="is_admin" value="1"/>
+				<input type="hidden" name="active" value="1"/>
+			}
+			<fieldset :class="admin ? 'opacity-50' : ''">
+				<legend class="text-sm font-semibold text-slate-900">Yetkiler</legend>
+				<p class="mb-3 text-xs text-slate-500">Yönetici işaretliyse tüm yetkiler otomatik açıktır. Listeleri ve detayları görmek herkese açıktır.</p>
+				<div class="space-y-4">
+					for _, g := range permGroups() {
+						<div>
+							<div class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{ g.Name }</div>
+							<div class="grid gap-1.5 sm:grid-cols-2">
+								for _, pi := range g.Items {
+									<label class="flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+										<input type="checkbox" name="perm" value={ string(pi.Key) } class="mt-0.5" :disabled="admin" checked?={ f.Perms[pi.Key] }/>
+										{ pi.Label }
+									</label>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			</fieldset>
+			<div class="flex gap-3 pt-1">
+				<button type="submit" class="btn btn-primary">Kaydet</button>
+				<a href="/users" class="btn btn-secondary">Vazgeç</a>
+			</div>
+		</form>
+	}
+}
+
+type permGroup struct {
+	Name  string
+	Items []auth.PermInfo
+}
+
+func permGroups() []permGroup {
+	var out []permGroup
+	for _, pi := range auth.AllPermissions {
+		if len(out) == 0 || out[len(out)-1].Name != pi.Group {
+			out = append(out, permGroup{Name: pi.Group})
+		}
+		out[len(out)-1].Items = append(out[len(out)-1].Items, pi)
+	}
+	return out
+}
+
+func userFormAction(f UserForm) string {
+	if f.ID == "" {
+		return "/users"
+	}
+	return "/users/" + f.ID
+}

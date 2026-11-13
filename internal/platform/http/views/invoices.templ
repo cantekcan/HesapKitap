@@ -101,7 +101,9 @@ templ InvoicesPage(p PageData, l InvoiceList) {
 					<option value="DRAFT" selected?={ l.Status == "DRAFT" }>Taslak</option>
 				</select>
 			</form>
-			<a href="/invoices/new" class={ btnPrimary }>+ Yeni fatura</a>
+			if p.Can("invoice.draft") {
+				<a href="/invoices/new" class={ btnPrimary }>+ Yeni fatura</a>
+			}
 		</div>
 		@InvoiceListFragment(l)
 	}
@@ -292,15 +294,28 @@ templ InvoiceFormPage(p PageData, f InvoiceForm) {
 				</div>
 			</div>
 			<div class="flex flex-wrap gap-3">
-				<button type="submit" class={ btnPrimary }>Taslağı kaydet</button>
+				if p.Can("invoice.draft") {
+					<button type="submit" class={ btnPrimary }>Taslağı kaydet</button>
+				}
+				if f.ID != "" {
+					<a href={ templ.SafeURL("/invoices/" + f.ID + "/preview.pdf") } target="_blank" rel="noopener" class={ btnSecondary }>
+						@Icon("printer")
+						PDF önizleme
+					</a>
+				}
 				<a href="/invoices" class={ btnSecondary }>Listeye dön</a>
 			</div>
+			if f.ID != "" {
+				<p class="mt-2 text-xs text-slate-500">PDF önizleme son kaydettiğiniz taslağı gösterir; değişiklik yaptıysanız önce kaydedin.</p>
+			}
 		</form>
-		if f.ID != "" {
+		if f.ID != "" && p.Can("invoice.issue") {
 			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/issue") } class="mt-6 card p-5" @submit="if (!confirm('Fatura kesilsin mi? Kesildikten sonra değiştirilemez; hatalıysa yalnızca iptal veya iade faturası ile düzeltilir.')) $event.preventDefault()">
 				<p class="mb-3 text-sm text-slate-600">Kaydettiğiniz taslak Trendyol E-Faturam'a gönderilir. Önce değişiklikleri kaydedin.</p>
 				<button type="submit" class={ btnPrimary }>Faturayı Kes</button>
 			</form>
+		}
+		if f.ID != "" && p.Can("invoice.delete") {
 			<form method="post" action={ templ.SafeURL("/invoices/" + f.ID + "/delete") } class="mt-4" @submit="if (!confirm('Bu taslak silinsin mi?')) $event.preventDefault()">
 				<button type="submit" class="text-sm text-red-600 hover:underline">Taslağı sil</button>
 			</form>
