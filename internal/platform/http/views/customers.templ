@@ -74,6 +74,10 @@ templ CustomersPage(p PageData, l CustomerList) {
 				</select>
 			</form>
 			<div class="flex gap-2">
+				<a href="/customers/import" class={ btnSecondary }>
+					@Icon("plus")
+					İçe aktar
+				</a>
 				<a href="/customers.xlsx" class={ btnSecondary }>
 					@Icon("download")
 					Excel

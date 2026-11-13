@@ -1,0 +1,15 @@
+# Otomatik HTTPS (Let's Encrypt). SITE_ADDRESS = alan adı, örn. fatura.firmaniz.com
+{$SITE_ADDRESS} {
+	encode gzip
+
+	# İzleme ve sağlık uç noktaları sadece sunucu içinden erişilir, dışarıya kapalıdır.
+	@internal path /metrics /healthz /readyz
+	respond @internal 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	reverse_proxy app:8080
+}

@@ -1,0 +1,73 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/customer"
+)
+
+// ImportPage is the customer import screen; Results is nil before the first upload.
+type ImportPage struct {
+	Results []customer.ImportResult
+	Error   string
+	Done    bool
+}
+
+func importCounts(rs []customer.ImportResult) (ok, failed int) {
+	for _, r := range rs {
+		if r.Created {
+			ok++
+		} else {
+			failed++
+		}
+	}
+	return
+}
+
+templ CustomerImportPage(p PageData, ip ImportPage) {
+	@Layout(p) {
+		<div class="grid gap-6 lg:grid-cols-3">
+			<div class="card p-5 lg:col-span-2">
+				<h2 class="card-title">Excel'den müşteri aktar</h2>
+				<p class="mt-1 text-sm text-slate-500">Mevcut müşterilerinizi ve açılış bakiyelerini tek seferde yükleyin. Aynı VKN/TCKN'li kayıtlar atlanır; hatalı satırlar aşağıda nedeniyle listelenir, diğerleri yine de eklenir.</p>
+				if ip.Error != "" {
+					<div class="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">{ ip.Error }</div>
+				}
+				<form method="post" action="/customers/import" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-center gap-3">
+					<input type="file" name="file" accept=".xlsx" required class="block w-full max-w-sm text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"/>
+					<button type="submit" class="btn btn-primary">Yükle ve aktar</button>
+				</form>
+			</div>
+			<div class="card p-5">
+				<h3 class="card-title">Şablon</h3>
+				<p class="mt-1 text-sm text-slate-500">Sütunlar: { importColumnsText() }. Ünvan ve VKN/TCKN zorunlu; il ve ilçe fatura kesmek için gerekli. Açılış bakiyesi: müşterinin size borcu (+), alacağı (−).</p>
+				<a href="/customers/import-template.xlsx" class="btn btn-secondary mt-4">
+					@Icon("download")
+					Şablonu indir
+				</a>
+			</div>
+		</div>
+		if ip.Done {
+			{{ ok, failed := importCounts(ip.Results) }}
+			<div class="mt-6 grid gap-4 sm:grid-cols-2">
+				<div class="card p-5"><div class="stat-label">Eklenen</div><div class="stat-value text-emerald-600">{ fmt.Sprint(ok) }</div></div>
+				<div class="card p-5"><div class="stat-label">Eklenemeyen</div><div class="stat-value text-rose-600">{ fmt.Sprint(failed) }</div></div>
+			</div>
+			if failed > 0 {
+				<div class="table-card mt-6 overflow-x-auto">
+					<table class="data-table">
+						<thead><tr><th class="px-4 py-3">Satır</th><th class="px-4 py-3">Ünvan</th><th class="px-4 py-3">Neden</th></tr></thead>
+						<tbody>
+							for _, r := range ip.Results {
+								if !r.Created {
+									<tr><td class="px-4 py-2.5 tabular-nums">{ fmt.Sprint(r.Row) }</td><td class="px-4 py-2.5">{ r.Name }</td><td class="px-4 py-2.5 text-rose-700">{ r.Message }</td></tr>
+								}
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<p class="mt-4"><a href="/customers" class="btn btn-primary">Müşteri listesine git</a></p>
+		}
+	}
+}

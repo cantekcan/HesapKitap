@@ -3,6 +3,9 @@ package views
 import (
 	"encoding/json"
 	"net/url"
+	"strings"
+
+	"hesapkitap/internal/customer"
 )
 
 func templURLEscape(s string) string { return url.QueryEscape(s) }
@@ -20,3 +23,5 @@ func hasFieldErrors(f InvoiceForm) bool {
 	}
 	return n > 0
 }
+
+func importColumnsText() string { return strings.Join(customer.ImportColumns, ", ") }

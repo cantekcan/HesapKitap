@@ -1,12 +1,16 @@
 package httpserver_test
 
 import (
+	"bytes"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
 
 func TestPaymentFlow(t *testing.T) {
@@ -65,4 +69,43 @@ func TestDashboardReportsAndExcelExports(t *testing.T) {
 		assert.Contains(t, r.Header.Get("Content-Type"), "spreadsheetml", p)
 		assert.True(t, len(r.Body) > 2 && r.Body[:2] == "PK", p) // xlsx bir zip'tir
 	}
+}
+
+func TestCustomerImportFromExcel(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+
+	x := excelize.NewFile()
+	sh := x.GetSheetName(0)
+	for i, row := range [][]any{
+		{"Ünvan", "VKN/TCKN", "İl", "İlçe", "Açılış bakiyesi"},
+		{"İçe Aktarılan Ltd.", "1234567890", "İstanbul", "Kadıköy", "500,25"},
+		{"Hatalı", "123", "İstanbul", "Kadıköy", ""},
+	} {
+		cell, _ := excelize.CoordinatesToCellName(1, i+1)
+		require.NoError(t, x.SetSheetRow(sh, cell, &row))
+	}
+	var xl bytes.Buffer
+	require.NoError(t, x.Write(&xl))
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("file", "musteriler.xlsx")
+	require.NoError(t, err)
+	_, err = fw.Write(xl.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, mw.Close())
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, a.srv.URL+"/customers/import", &body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := a.client.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	out, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, string(out), "Eklenen")
+	assert.Contains(t, string(out), "Hatalı")
+	assert.Contains(t, a.get("/customers").Body, "İçe Aktarılan Ltd.")
+	assert.Equal(t, http.StatusOK, a.get("/customers/import-template.xlsx").Status)
 }
