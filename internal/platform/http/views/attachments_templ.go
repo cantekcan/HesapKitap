@@ -345,7 +345,7 @@ func AttachmentBox(p AttachmentPanel) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " Fotoğraf çek / dosya seç <input type=\"file\" name=\"file\" accept=\"image/*,application/pdf\" class=\"sr-only\"></label><p class=\"mt-2 text-xs text-slate-500\">Telefonda doğrudan kamera açılır. En fazla 10 MB; fotoğraf (JPEG, PNG, WebP, GIF) veya PDF.</p></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " Fotoğraf çek / dosya seç <input type=\"file\" name=\"file\" accept=\"image/*,application/pdf\" class=\"sr-only\"></label><p class=\"mt-2 text-xs text-slate-500\">Telefonda “Kamera” seçeneğiyle doğrudan fotoğraf çekebilirsiniz. En fazla 10 MB; fotoğraf (JPEG, PNG, WebP, GIF) veya PDF.</p></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
