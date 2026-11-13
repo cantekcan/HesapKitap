@@ -31,7 +31,7 @@ var navGroups = []navGroup{
 		{Label: "Tahsilatlar", Href: "/payments", Key: "payments", Icon: "banknotes"},
 	}},
 	{Title: "Alış", Items: []navItem{
-		{Label: "Gelen faturalar", Href: "/incoming", Key: "incoming", Icon: "arrow-down"},
+		{Label: "Gelen faturalar", Href: "/incoming", Key: "incoming", Icon: "inbox"},
 	}},
 	{Title: "Kayıtlar", Items: []navItem{
 		{Label: "Müşteriler", Href: "/customers", Key: "customers", Icon: "users"},
@@ -252,11 +252,11 @@ func Logo() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = LogoMark("h-9 w-9 shrink-0").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = LogoMark("h-12 w-12 shrink-0 drop-shadow-[0_6px_14px_rgba(99,102,241,0.45)]").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"leading-tight\"><div class=\"text-base font-semibold tracking-tight text-white\">Hesap Kitap</div><div class=\"text-[11px] font-medium text-brand-300\">Fatura &amp; Cari Takip</div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"leading-tight\"><div class=\"text-xl font-bold tracking-tight text-white\">Hesap Kitap</div><div class=\"mt-0.5 text-xs font-medium text-brand-300\">Fatura &amp; Cari Takip</div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -294,11 +294,11 @@ func Layout(p PageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = LogoMark("h-8 w-8").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = LogoMark("h-10 w-10").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span class=\"text-base font-semibold tracking-tight\">Hesap Kitap</span></div><button type=\"button\" class=\"rounded-lg p-2 hover:bg-white/10\" @click=\"open = !open\" aria-label=\"Menüyü aç/kapat\" :aria-expanded=\"open\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span class=\"text-lg font-bold tracking-tight\">Hesap Kitap</span></div><button type=\"button\" class=\"rounded-lg p-2 hover:bg-white/10\" @click=\"open = !open\" aria-label=\"Menüyü aç/kapat\" :aria-expanded=\"open\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -306,7 +306,7 @@ func Layout(p PageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button></div><div x-show=\"open\" x-cloak class=\"fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden\" @click=\"open = false\"></div><aside class=\"fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col bg-gradient-to-b from-brand-950 via-brand-950 to-slate-950 p-4 transition-transform lg:translate-x-0\" :class=\"{ '-translate-x-full': !open }\"><div class=\"mb-8 px-2 pt-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button></div><div x-show=\"open\" x-cloak class=\"fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden\" @click=\"open = false\"></div><aside class=\"fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col bg-gradient-to-b from-brand-950 via-brand-950 to-slate-950 p-4 transition-transform lg:translate-x-0\" :class=\"{ '-translate-x-full': !open }\"><div class=\"mb-6 px-2 pt-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -314,7 +314,7 @@ func Layout(p PageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div><nav class=\"flex-1 space-y-5 overflow-y-auto\" aria-label=\"Ana menü\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div><nav class=\"nav-scroll -mr-2 flex-1 space-y-4 overflow-y-auto pr-2\" aria-label=\"Ana menü\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -433,7 +433,7 @@ func Layout(p PageData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</nav><div class=\"mt-4 rounded-2xl bg-white/5 p-3\"><div class=\"flex items-center gap-3\"><div class=\"flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</nav><div class=\"mt-3 rounded-2xl bg-white/5 p-3 ring-1 ring-inset ring-white/10\"><div class=\"flex items-center gap-3\"><div class=\"flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

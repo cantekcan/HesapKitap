@@ -195,13 +195,13 @@ templ IncomingTiles(c incoming.Counts, errMsg string, wide bool) {
 	} else if wide {
 		<div class="grid gap-4 sm:grid-cols-3">
 			@tile("Onay bekleyen ticari", c.AwaitingReply, "/incoming?f=awaiting", "amber", "clock", approxNote(c))
-			@tile("Okunmamış", c.Unread, "/incoming?f=unread", "blue", "arrow-down", "")
+			@tile("Okunmamış", c.Unread, "/incoming?f=unread", "blue", "inbox", "")
 			@tile("Tüm gelen e-Faturalar", c.All, "/incoming?f=all", "gray", "document", "")
 		</div>
 	} else {
 		<div class="col-span-2 grid grid-cols-2 gap-3">
 			@tile("Onay bekleyen", c.AwaitingReply, "/incoming?f=awaiting", "amber", "clock", approxNote(c))
-			@tile("Okunmamış", c.Unread, "/incoming?f=unread", "blue", "arrow-down", "")
+			@tile("Okunmamış", c.Unread, "/incoming?f=unread", "blue", "inbox", "")
 			<div class="col-span-2">
 				@incomingLink("Gelen e-Faturalar", fmt.Sprintf("Toplam %d fatura", c.All))
 			</div>
