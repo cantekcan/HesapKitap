@@ -152,6 +152,7 @@ var ErrNotFound = errors.New("fatura bulunamadı")
 type ListFilter struct {
 	Query  string // müşteri adı
 	Status string
+	Kind   string // "", EARCHIVE veya EINVOICE
 	Limit  int
 	Offset int
 }

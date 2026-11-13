@@ -215,6 +215,52 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID) error {
 	return s.Issues.RecordResult(ctx, id, ResultUpdate{Status: StatusAnnulled, ProviderStatus: &ps, Number: d.Number})
 }
 
+// ErrCannotResend is returned when the invoice is not an e-Fatura that failed at the provider.
+var ErrCannotResend = errors.New("yalnızca GİB'de hata alan e-Fatura yeniden gönderilebilir")
+
+// CanResend reports whether the invoice is an e-Fatura that failed at the provider (doküman hatası / hatalı).
+func (d Draft) CanResend() bool {
+	return d.Kind == KindEInvoice && d.Status == StatusIssued && d.ProviderStatus != nil &&
+		(*d.ProviderStatus == StatusDocumentError || *d.ProviderStatus == StatusFailed)
+}
+
+// Reply asks for the recipient's answer to a commercial e-Fatura.
+func (s *Service) Reply(ctx context.Context, id uuid.UUID) (Reply, bool, error) {
+	if s.Provider == nil {
+		return Reply{}, false, ErrNoProvider
+	}
+	d, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return Reply{}, false, err
+	}
+	if d.Kind != KindEInvoice || d.Status != StatusIssued {
+		return Reply{}, false, ErrNotIssued
+	}
+	return s.Provider.SentReply(ctx, d.ETTN)
+}
+
+// Resend sends a failed e-Fatura again to the same alias and records the provider's new status.
+func (s *Service) Resend(ctx context.Context, id uuid.UUID) error {
+	if s.Provider == nil {
+		return ErrNoProvider
+	}
+	d, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !d.CanResend() {
+		return ErrCannotResend
+	}
+	if err := s.Provider.Resend(ctx, d.ETTN, ""); err != nil {
+		return err
+	}
+	info, found, err := s.Provider.Status(ctx, d.Kind, d.ETTN)
+	if err != nil || !found {
+		return err
+	}
+	return s.record(ctx, id, info.Number, info.Status)
+}
+
 // DocumentURL returns the PDF link of an issued invoice.
 func (s *Service) DocumentURL(ctx context.Context, id uuid.UUID, permanent bool) (string, error) {
 	if s.Provider == nil {

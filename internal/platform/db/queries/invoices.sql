@@ -28,13 +28,15 @@ values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 -- name: CountInvoices :one
 select count(*) from invoices i join customers c on c.id = i.customer_id
 where (@q::text = '' or c.name ilike '%' || @q || '%')
-  and (@status::text = '' or i.status = @status);
+  and (@status::text = '' or i.status = @status)
+  and (@kind::text = '' or i.kind = @kind);
 
 -- name: ListInvoices :many
 select i.id, i.status, i.customer_id, i.issue_date, i.due_date, i.payable, c.name as customer_name
 from invoices i join customers c on c.id = i.customer_id
 where (@q::text = '' or c.name ilike '%' || @q || '%')
   and (@status::text = '' or i.status = @status)
+  and (@kind::text = '' or i.kind = @kind)
 order by i.issue_date desc, i.created_at desc
 limit @lim offset @off;
 
@@ -62,3 +64,9 @@ where id = $1 and status = 'SENDING';
 -- name: ListPendingInvoices :many
 select id from invoices where status = 'ISSUED' and (provider_status is null or provider_status not in (205, 305, 405, 105, 29))
 order by updated_at limit $1;
+
+-- name: InvoiceCountsByKind :many
+-- Pano kutucukları ve liste sekmeleri: tür (taslakta boş), durum ve "bu ay mı" kırılımında fatura sayısı.
+select coalesce(kind, '')::text as kind, status, (issue_date >= @month_start::date) as this_month, count(*) as n
+from invoices
+group by 1, 2, 3;

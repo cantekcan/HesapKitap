@@ -172,7 +172,7 @@ func TestSentReplyUsesCompanyIDFromToken(t *testing.T) {
 		writeJSON(w, `{"responseType":"DENIED","note":"yanlış tutar","issuedAt":"2026-11-12T10:00:00Z"}`)
 	})
 
-	reply, err := f.client().SentReply(t.Context(), ettn)
+	reply, err := f.client().SentReplyByUUID(t.Context(), ettn)
 	require.NoError(t, err)
 	assert.Equal(t, trendyol.ResponseDenied, reply.ResponseType)
 	assert.Equal(t, "yanlış tutar", reply.Note)

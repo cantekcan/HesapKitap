@@ -14,6 +14,9 @@ type InvoiceView struct {
 	Totals  invoice.Totals
 	Message string // kullanıcıya gösterilecek hata veya bilgi
 	Flash   string
+	CanResend bool // kullanıcı e-Faturayı yeniden gönderebilir mi
+	MailReady bool   // SMTP ayarlı ve kullanıcı gönderebilir
+	EmailTo   string // müşterinin e-postası (boş olabilir)
 }
 
 func statusBadgeClass(s invoice.Status) string {
@@ -122,6 +125,30 @@ templ InvoiceStatusBox(v InvoiceView) {
 				<button type="button" hx-post={ "/invoices/" + v.Draft.ID.String() + "/share" } hx-target="#share-link" hx-swap="innerHTML" class={ btnSecondary }>Paylaşım bağlantısı</button>
 			</div>
 			<div id="share-link" class="mt-3 text-sm"></div>
+			if v.MailReady {
+				<div class="mt-3">
+					@ConfirmAction(Confirm{
+						Action: "/invoices/" + v.Draft.ID.String() + "/email", Button: "Müşteriye e-posta gönder", ButtonClass: btnSecondary,
+						Title: "Fatura bağlantısı e-postayla gönderilsin mi?", Message: "Müşterinin kayıtlı e-posta adresine faturanın kalıcı PDF bağlantısı gönderilir.",
+						Details: [][2]string{{"Alıcı", emailOrDash(v.EmailTo)}, {"Müşteri", v.Draft.CustomerName}},
+						Yes: "Evet, gönder",
+					})
+				</div>
+			}
+			if v.Draft.Kind == invoice.KindEInvoice && v.Draft.Scenario == "TICARIFATURA" {
+				<div hx-get={ "/invoices/" + v.Draft.ID.String() + "/reply" } hx-trigger="load" hx-swap="innerHTML" class="mt-4 text-sm text-slate-500">Alıcı yanıtı sorgulanıyor…</div>
+			}
+			if v.CanResend && v.Draft.CanResend() {
+				<div class="mt-4 rounded-xl bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
+					<p class="mb-2 text-sm text-amber-900">Bu e-Fatura GİB tarafında hata aldı. Aynı alıcıya yeniden gönderebilirsiniz.</p>
+					@ConfirmAction(Confirm{
+						Action: "/invoices/" + v.Draft.ID.String() + "/resend", Button: "Yeniden gönder", ButtonClass: btnSecondary,
+						Title: "e-Fatura yeniden gönderilsin mi?", Message: "Fatura aynı alıcıya ve aynı etiketle GİB'e tekrar iletilir.",
+						Details: [][2]string{{"Müşteri", v.Draft.CustomerName}, {"Fatura no", v.Draft.Number}},
+						Yes: "Evet, yeniden gönder",
+					})
+				</div>
+			}
 		}
 	</div>
 }
@@ -216,4 +243,38 @@ templ DraftReviewPage(p PageData, v DraftReview) {
 		</div>
 		@InvoiceLinesCard(v.Draft, v.Totals)
 	}
+}
+
+// ReplyBox shows the recipient's answer to a commercial e-Fatura (nil = no answer yet).
+templ ReplyBox(r *invoice.Reply, errMsg string) {
+	if errMsg != "" {
+		<p class="text-sm text-rose-700">{ errMsg }</p>
+	} else if r == nil {
+		<p class="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 ring-1 ring-inset ring-slate-200">Ticari fatura: alıcı henüz yanıt vermedi. Süre dolunca otomatik kabul edilir.</p>
+	} else {
+		<div class={ replyClass(r.Type) }>
+			<div class="font-medium">{ r.Type.Label() }</div>
+			if r.Note != "" {
+				<div class="mt-1 whitespace-pre-line">{ r.Note }</div>
+			}
+			if r.At != "" {
+				<div class="mt-1 text-xs opacity-70">{ r.At }</div>
+			}
+		</div>
+	}
+}
+
+func replyClass(t invoice.ReplyType) string {
+	base := "rounded-xl px-3 py-2 text-sm ring-1 ring-inset "
+	if t == invoice.ReplyDenied || t == invoice.ReplyReturned {
+		return base + "bg-rose-50 text-rose-800 ring-rose-200"
+	}
+	return base + "bg-emerald-50 text-emerald-800 ring-emerald-200"
+}
+
+func emailOrDash(e string) string {
+	if e == "" {
+		return "— (kayıtlı değil)"
+	}
+	return e
 }

@@ -21,6 +21,7 @@ import (
 	"hesapkitap/internal/platform/db"
 	"hesapkitap/internal/platform/db/dbgen"
 	httpserver "hesapkitap/internal/platform/http"
+	"hesapkitap/internal/platform/mail"
 	"hesapkitap/internal/platform/pdf"
 	"hesapkitap/internal/platform/queue"
 	"hesapkitap/internal/product"
@@ -83,7 +84,12 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}()
 	}
 
+	var mailer mail.Sender
+	if mc := (mail.Config{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, User: cfg.SMTP.User, Password: cfg.SMTP.Password, From: cfg.SMTP.From}); mc.Enabled() {
+		mailer = mail.NewSMTP(mc)
+	}
 	handler, err := httpserver.New(httpserver.Deps{
+		Mailer:    mailer,
 		Customers: customers,
 		Products:  &product.Service{Store: db.NewProductStore(dbgen.New(pool))},
 		Invoices:  invoices,

@@ -78,11 +78,11 @@ func DraftInvoice(in DraftData) ([]byte, error) {
 }
 
 func watermark(p *fpdf.Fpdf) {
-	p.SetFont(fontName, "B", 96)
+	p.SetFont(fontName, "B", 76)
 	p.SetTextColor(250, 214, 214)
 	p.TransformBegin()
-	p.TransformRotate(42, pageW/2, 160)
-	p.Text(pageW/2-62, 172, "TASLAKTIR")
+	p.TransformRotate(40, pageW/2, 160)
+	p.Text(pageW/2-50, 170, "TASLAKTIR")
 	p.TransformEnd()
 	p.SetTextColor(0, 0, 0)
 }

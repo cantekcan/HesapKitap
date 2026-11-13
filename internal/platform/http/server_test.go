@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,6 +45,15 @@ type testApp struct {
 	jobs     *fakeEnqueuer
 	invoices *invoice.Service
 	authSvc  *auth.Service
+	mailer   *fakeMailer
+}
+
+// customerIDOf returns the customer id of an invoice.
+func (a *testApp) customerIDOf(invoiceID string) string {
+	a.t.Helper()
+	d, err := a.invoices.Get(a.t.Context(), uuid.MustParse(invoiceID))
+	require.NoError(a.t, err)
+	return d.CustomerID.String()
 }
 
 // other returns a second browser (own cookie jar) talking to the same server.
@@ -68,7 +78,7 @@ func newTestApp(t *testing.T) *testApp {
 	_, err = svc.CreateUser(t.Context(), testEmail, testPassword)
 	require.NoError(t, err)
 
-	provider, jobs := newFakeProvider(), &fakeEnqueuer{}
+	provider, jobs, mailer := newFakeProvider(), &fakeEnqueuer{}, &fakeMailer{}
 	customers := &customer.Service{Store: db.NewCustomerStore(dbgen.New(pool)), Provider: provider}
 	invoiceStore := db.NewInvoiceStore(pool, jobs)
 	invoices := &invoice.Service{Store: invoiceStore, Issues: invoiceStore, Provider: provider, Recipients: customers}
@@ -84,6 +94,7 @@ func newTestApp(t *testing.T) *testApp {
 		Ledger:    db.NewLedgerStore(dbgen.New(pool)),
 		Reports:   db.NewReportStore(dbgen.New(pool)),
 		Audit:     db.NewAuditStore(dbgen.New(pool)),
+		Mailer:    mailer,
 	})
 	require.NoError(t, err)
 
@@ -93,7 +104,7 @@ func newTestApp(t *testing.T) *testApp {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	return &testApp{
-		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices, authSvc: svc,
+		t: t, srv: srv, provider: provider, jobs: jobs, invoices: invoices, authSvc: svc, mailer: mailer,
 		client: &http.Client{
 			Jar:           jar,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },

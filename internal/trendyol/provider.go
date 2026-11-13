@@ -165,6 +165,23 @@ func (c *Client) Cancel(ctx context.Context, ettn uuid.UUID) error {
 	return c.CancelEArchive(ctx, ettn.String())
 }
 
+// SentReply implements invoice.EInvoiceProvider. A 404 means the recipient has not answered yet.
+func (c *Client) SentReply(ctx context.Context, ettn uuid.UUID) (invoice.Reply, bool, error) {
+	r, err := c.SentReplyByUUID(ctx, ettn.String())
+	if IsNotFound(err) {
+		return invoice.Reply{}, false, nil
+	}
+	if err != nil {
+		return invoice.Reply{}, false, err
+	}
+	return invoice.Reply{Type: invoice.ReplyType(r.ResponseType), Note: r.Note, At: r.IssuedAt}, true, nil
+}
+
+// Resend implements invoice.EInvoiceProvider.
+func (c *Client) Resend(ctx context.Context, ettn uuid.UUID, newAlias string) error {
+	return c.ResendOutgoingEInvoice(ctx, ettn.String(), newAlias)
+}
+
 // DocumentURL implements invoice.EInvoiceProvider: the PDF link.
 func (c *Client) DocumentURL(ctx context.Context, kind invoice.Kind, ettn uuid.UUID, permanent bool) (string, error) {
 	docType := DocumentEArchive

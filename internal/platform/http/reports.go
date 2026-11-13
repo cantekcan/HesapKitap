@@ -24,6 +24,11 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "dikkat listesi okunamadı", err)
 		return
 	}
+	counts, err := s.Reports.InvoiceCounts(r.Context(), time.Date(today().Year(), today().Month(), 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		s.serverError(w, r, "fatura sayıları okunamadı", err)
+		return
+	}
 	d := report.BuildDashboard(all, today(), attention)
 	hasData := false
 	for _, c := range all {
@@ -32,7 +37,7 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	render(w, r, http.StatusOK, views.Dashboard(s.pageData(r, "dashboard", "Pano"), d, hasData))
+	render(w, r, http.StatusOK, views.Dashboard(s.pageData(r, "dashboard", "Pano"), d, counts, hasData))
 }
 
 func (s *server) reportsHub(w http.ResponseWriter, r *http.Request) {
@@ -97,4 +102,8 @@ func (s *server) reportAging(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render(w, r, http.StatusOK, views.AgingReportPage(s.pageData(r, "reports", "Alacak yaşlandırma"), report.BuildAging(all, today())))
+}
+
+func (s *server) incoming(w http.ResponseWriter, r *http.Request) {
+	render(w, r, http.StatusOK, views.IncomingPage(s.pageData(r, "incoming", "Gelen faturalar")))
 }

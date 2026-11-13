@@ -103,11 +103,11 @@ func (s *InvoiceStore) Get(ctx context.Context, id uuid.UUID) (invoice.Draft, er
 
 func (s *InvoiceStore) List(ctx context.Context, f invoice.ListFilter) ([]invoice.Summary, int, error) {
 	q := dbgen.New(s.pool)
-	total, err := q.CountInvoices(ctx, dbgen.CountInvoicesParams{Q: f.Query, Status: f.Status})
+	total, err := q.CountInvoices(ctx, dbgen.CountInvoicesParams{Q: f.Query, Status: f.Status, Kind: f.Kind})
 	if err != nil {
 		return nil, 0, err
 	}
-	rows, err := q.ListInvoices(ctx, dbgen.ListInvoicesParams{Q: f.Query, Status: f.Status, Lim: int32(f.Limit), Off: int32(f.Offset)}) //nolint:gosec // sayfa boyutu sabit ve küçük
+	rows, err := q.ListInvoices(ctx, dbgen.ListInvoicesParams{Q: f.Query, Status: f.Status, Kind: f.Kind, Lim: int32(f.Limit), Off: int32(f.Offset)}) //nolint:gosec // sayfa boyutu sabit ve küçük
 	if err != nil {
 		return nil, 0, err
 	}

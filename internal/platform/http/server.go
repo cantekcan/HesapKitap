@@ -24,6 +24,7 @@ import (
 	"hesapkitap/internal/payment"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
+	"hesapkitap/internal/platform/mail"
 	"hesapkitap/internal/platform/pdf"
 	"hesapkitap/internal/product"
 	"hesapkitap/internal/report"
@@ -47,6 +48,7 @@ type Deps struct {
 	Reports   report.Source
 	Audit     audit.Store
 	Company   pdf.Company // taslak PDF önizlemede satıcı bloğu
+	Mailer    mail.Sender // nil: e-posta gönderimi kapalı
 }
 
 type server struct {
@@ -92,6 +94,7 @@ func New(d Deps) (http.Handler, error) {
 	authed := func(h http.HandlerFunc) http.Handler { return s.requireAuth(h) }
 	route(app, "GET /{$}", authed(s.dashboard))
 	route(app, "GET /audit", s.can(auth.PermAuditView, s.auditList))
+	route(app, "GET /incoming", authed(s.incoming))
 	route(app, "GET /reminders", s.can(auth.PermReportView, s.reminders))
 	route(app, "GET /reports", s.can(auth.PermReportView, s.reportsHub))
 	route(app, "GET /reports/sales", s.can(auth.PermReportView, s.reportSales))
@@ -130,6 +133,9 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "GET /invoices/{id}/pdf", authed(s.invoicePDF))
 	route(app, "GET /invoices/{id}/preview.pdf", authed(s.invoicePreviewPDF))
 	route(app, "POST /invoices/{id}/share", authed(s.invoiceShare))
+	route(app, "GET /invoices/{id}/reply", authed(s.invoiceReply))
+	route(app, "POST /invoices/{id}/resend", s.can(auth.PermInvoiceIssue, s.invoiceResend))
+	route(app, "POST /invoices/{id}/email", s.can(auth.PermInvoiceIssue, s.invoiceEmail))
 	route(app, "POST /invoices/{id}/cancel", s.can(auth.PermInvoiceCancel, s.invoiceCancel))
 	route(app, "GET /payments", authed(s.paymentList))
 	route(app, "GET /payments/new", s.can(auth.PermPaymentCreate, s.paymentNew))

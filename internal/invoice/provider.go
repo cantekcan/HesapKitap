@@ -111,4 +111,42 @@ type EInvoiceProvider interface {
 
 	// DocumentURL returns a link to the PDF. permanent=true gives a shareable link that does not expire.
 	DocumentURL(ctx context.Context, kind Kind, ettn uuid.UUID, permanent bool) (string, error)
+
+	// SentReply returns the recipient's answer to a commercial e-Fatura. found=false: no answer yet.
+	SentReply(ctx context.Context, ettn uuid.UUID) (reply Reply, found bool, err error)
+
+	// Resend sends an e-Fatura again (it failed at GİB, or the alias was wrong). newAlias may be empty.
+	Resend(ctx context.Context, ettn uuid.UUID, newAlias string) error
+}
+
+// ReplyType is the recipient's answer to a commercial e-Fatura.
+type ReplyType string
+
+const (
+	ReplyApproved     ReplyType = "APPROVED"
+	ReplyAutoApproved ReplyType = "AUTO_APPROVED"
+	ReplyDenied       ReplyType = "DENIED"
+	ReplyReturned     ReplyType = "RETURNED"
+)
+
+// Label is the Turkish text shown on screen.
+func (r ReplyType) Label() string {
+	switch r {
+	case ReplyApproved:
+		return "Alıcı kabul etti"
+	case ReplyAutoApproved:
+		return "Süre dolduğu için otomatik kabul edildi"
+	case ReplyDenied:
+		return "Alıcı reddetti"
+	case ReplyReturned:
+		return "Alıcı iade etti"
+	}
+	return string(r)
+}
+
+// Reply is the recipient's answer with the note they wrote.
+type Reply struct {
+	Type ReplyType
+	Note string
+	At   string // sağlayıcının verdiği zaman metni
 }

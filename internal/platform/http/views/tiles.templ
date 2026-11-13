@@ -1,0 +1,89 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/invoice"
+	"hesapkitap/internal/report"
+)
+
+// tileTone maps a tone name to the colors of a tile.
+func tileTone(tone string) string {
+	switch tone {
+	case "blue":
+		return "bg-sky-50 text-sky-900 ring-sky-200 hover:bg-sky-100"
+	case "green":
+		return "bg-emerald-50 text-emerald-900 ring-emerald-200 hover:bg-emerald-100"
+	case "amber":
+		return "bg-amber-50 text-amber-900 ring-amber-200 hover:bg-amber-100"
+	case "red":
+		return "bg-rose-50 text-rose-900 ring-rose-200 hover:bg-rose-100"
+	}
+	return "bg-slate-50 text-slate-800 ring-slate-200 hover:bg-slate-100"
+}
+
+templ tile(label string, n int, href, tone, icon, note string) {
+	<a href={ templ.SafeURL(href) } class={ "group flex flex-col justify-between rounded-2xl p-4 ring-1 ring-inset transition hover:-translate-y-0.5 hover:shadow-md " + tileTone(tone) }>
+		<div class="text-[11px] font-semibold uppercase leading-tight tracking-wide opacity-80">{ label }</div>
+		<div class="mt-4 flex items-end justify-between">
+			<span class="opacity-60 transition group-hover:opacity-100">
+				@Icon(icon)
+			</span>
+			<span class="text-4xl font-semibold leading-none tabular-nums">{ fmt.Sprint(n) }</span>
+		</div>
+		if note != "" {
+			<div class="mt-2 text-right text-[11px] opacity-70">{ note }</div>
+		}
+	</a>
+}
+
+func monthNote(c report.InvoiceCounts, kind invoice.Kind, st invoice.Status) string {
+	return fmt.Sprintf("bu ay: %d", c.Count(kind, st, true))
+}
+
+func listHref(kind invoice.Kind, st invoice.Status) string {
+	h := "/invoices?"
+	if kind != "" {
+		h += "kind=" + string(kind) + "&"
+	}
+	if st != "" {
+		h += "status=" + string(st)
+	}
+	return h
+}
+
+templ kindPanel(title string, kind invoice.Kind, c report.InvoiceCounts) {
+	<section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+		<header class="bg-gradient-to-r from-slate-700 to-slate-600 px-5 py-3 text-center text-sm font-semibold tracking-wide text-white">{ title }</header>
+		<div class="grid grid-cols-2 gap-3 p-4">
+			@tile("Kesilen", c.Count(kind, invoice.StatusIssued, false), listHref(kind, invoice.StatusIssued), "blue", "check", monthNote(c, kind, invoice.StatusIssued))
+			@tile("Gönderimde", c.Count(kind, invoice.StatusSending, false), listHref(kind, invoice.StatusSending), "amber", "clock", "")
+			@tile("Hatalı", c.Count(kind, invoice.StatusErrored, false), listHref(kind, invoice.StatusErrored), "red", "alert", "")
+			@tile("İptal edilen", c.Count(kind, invoice.StatusAnnulled, false), listHref(kind, invoice.StatusAnnulled), "gray", "document", "")
+		</div>
+	</section>
+}
+
+// InvoiceTiles is the e-Arşiv / e-Fatura / diğer block of the dashboard.
+templ InvoiceTiles(c report.InvoiceCounts) {
+	<div class="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+		@kindPanel("E-ARŞİV", invoice.KindEArchive, c)
+		@kindPanel("E-FATURA", invoice.KindEInvoice, c)
+		<section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+			<header class="bg-gradient-to-r from-slate-700 to-slate-600 px-5 py-3 text-center text-sm font-semibold tracking-wide text-white">DİĞER</header>
+			<div class="grid grid-cols-2 gap-3 p-4">
+				@tile("Taslak faturalar", c.Count("", invoice.StatusDraft, false), listHref("", invoice.StatusDraft), "green", "document", "onay bekliyor")
+				@tile("Tüm faturalar", c.Count("", "", false), "/invoices", "gray", "document", "")
+				<a href="/incoming" class="col-span-2 flex items-center justify-between rounded-2xl bg-brand-50 p-4 text-brand-900 ring-1 ring-inset ring-brand-200 transition hover:-translate-y-0.5 hover:bg-brand-100 hover:shadow-md">
+					<div>
+						<div class="text-[11px] font-semibold uppercase tracking-wide opacity-80">Gelen e-Faturalar</div>
+						<div class="mt-1 text-xs opacity-80">Tedarikçilerden gelen faturalar</div>
+					</div>
+					<span class="opacity-70">
+						@Icon("arrow-down")
+					</span>
+				</a>
+			</div>
+		</section>
+	</div>
+}

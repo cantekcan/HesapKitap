@@ -198,7 +198,7 @@ func TestIDsComeFromSubAndPrivsKey(t *testing.T) {
 		writeJSON(w, `{"responseType":"APPROVED","note":"tamam","issuedAt":"2026-11-12T10:00:00Z"}`)
 	})
 
-	reply, err := f.client().SentReply(t.Context(), "uuid-1")
+	reply, err := f.client().SentReplyByUUID(t.Context(), "uuid-1")
 	require.NoError(t, err)
 	assert.Equal(t, trendyol.ResponseApproved, reply.ResponseType)
 }

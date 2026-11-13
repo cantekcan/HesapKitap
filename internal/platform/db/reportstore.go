@@ -60,3 +60,15 @@ func (s *ReportStore) Attention(ctx context.Context) ([]report.Attention, error)
 	}
 	return out, nil
 }
+
+func (s *ReportStore) InvoiceCounts(ctx context.Context, monthStart time.Time) (report.InvoiceCounts, error) {
+	rows, err := s.q.InvoiceCountsByKind(ctx, toDate(monthStart))
+	if err != nil {
+		return report.InvoiceCounts{}, err
+	}
+	out := report.InvoiceCounts{Rows: make([]report.CountRow, len(rows))}
+	for i, r := range rows {
+		out.Rows[i] = report.CountRow{Kind: invoice.Kind(r.Kind), Status: invoice.Status(r.Status), ThisMonth: r.ThisMonth, N: int(r.N)}
+	}
+	return out, nil
+}

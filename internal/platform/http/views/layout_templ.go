@@ -30,6 +30,9 @@ var navGroups = []navGroup{
 		{Label: "Faturalar", Href: "/invoices", Key: "invoices", Icon: "document"},
 		{Label: "Tahsilatlar", Href: "/payments", Key: "payments", Icon: "banknotes"},
 	}},
+	{Title: "Alış", Items: []navItem{
+		{Label: "Gelen faturalar", Href: "/incoming", Key: "incoming", Icon: "arrow-down"},
+	}},
 	{Title: "Kayıtlar", Items: []navItem{
 		{Label: "Müşteriler", Href: "/customers", Key: "customers", Icon: "users"},
 		{Label: "Ürünler", Href: "/products", Key: "products", Icon: "cube"},
@@ -126,7 +129,7 @@ func head(title string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 100, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 103, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -139,7 +142,7 @@ func head(title string) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/static/app.css?v=" + AssetVersion).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 102, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 105, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -152,7 +155,7 @@ func head(title string) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/static/app.js?v=" + AssetVersion).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 105, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 108, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -328,7 +331,7 @@ func Layout(p PageData) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(g.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 162, Col: 111}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 165, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -355,7 +358,7 @@ func Layout(p PageData) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(item.Href)).ResolveURL(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 166, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 169, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 					if templ_7745c5c3_Err != nil {
@@ -414,7 +417,7 @@ func Layout(p PageData) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(item.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 168, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 171, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -437,7 +440,7 @@ func Layout(p PageData) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(initials(p.Email))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 177, Col: 147}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 180, Col: 147}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -450,7 +453,7 @@ func Layout(p PageData) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(p.Email)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 179, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 182, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -463,7 +466,7 @@ func Layout(p PageData) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 190, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/platform/http/views/layout.templ`, Line: 193, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {

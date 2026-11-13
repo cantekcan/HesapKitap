@@ -48,15 +48,17 @@ const countInvoices = `-- name: CountInvoices :one
 select count(*) from invoices i join customers c on c.id = i.customer_id
 where ($1::text = '' or c.name ilike '%' || $1 || '%')
   and ($2::text = '' or i.status = $2)
+  and ($3::text = '' or i.kind = $3)
 `
 
 type CountInvoicesParams struct {
 	Q      string
 	Status string
+	Kind   string
 }
 
 func (q *Queries) CountInvoices(ctx context.Context, arg CountInvoicesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countInvoices, arg.Q, arg.Status)
+	row := q.db.QueryRow(ctx, countInvoices, arg.Q, arg.Status, arg.Kind)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -197,6 +199,45 @@ func (q *Queries) InsertInvoiceLine(ctx context.Context, arg InsertInvoiceLinePa
 	return err
 }
 
+const invoiceCountsByKind = `-- name: InvoiceCountsByKind :many
+select coalesce(kind, '')::text as kind, status, (issue_date >= $1::date) as this_month, count(*) as n
+from invoices
+group by 1, 2, 3
+`
+
+type InvoiceCountsByKindRow struct {
+	Kind      string
+	Status    string
+	ThisMonth bool
+	N         int64
+}
+
+// Pano kutucukları ve liste sekmeleri: tür (taslakta boş), durum ve "bu ay mı" kırılımında fatura sayısı.
+func (q *Queries) InvoiceCountsByKind(ctx context.Context, monthStart pgtype.Date) ([]InvoiceCountsByKindRow, error) {
+	rows, err := q.db.Query(ctx, invoiceCountsByKind, monthStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvoiceCountsByKindRow
+	for rows.Next() {
+		var i InvoiceCountsByKindRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.Status,
+			&i.ThisMonth,
+			&i.N,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInvoiceLines = `-- name: ListInvoiceLines :many
 select id, invoice_id, position, product_id, item_name, unit, quantity_milli, unit_price, discount, tax_percent from invoice_lines where invoice_id = $1 order by position
 `
@@ -237,13 +278,15 @@ select i.id, i.status, i.customer_id, i.issue_date, i.due_date, i.payable, c.nam
 from invoices i join customers c on c.id = i.customer_id
 where ($1::text = '' or c.name ilike '%' || $1 || '%')
   and ($2::text = '' or i.status = $2)
+  and ($3::text = '' or i.kind = $3)
 order by i.issue_date desc, i.created_at desc
-limit $4 offset $3
+limit $5 offset $4
 `
 
 type ListInvoicesParams struct {
 	Q      string
 	Status string
+	Kind   string
 	Off    int32
 	Lim    int32
 }
@@ -262,6 +305,7 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]L
 	rows, err := q.db.Query(ctx, listInvoices,
 		arg.Q,
 		arg.Status,
+		arg.Kind,
 		arg.Off,
 		arg.Lim,
 	)

@@ -15,6 +15,7 @@ import (
 	"hesapkitap/internal/money"
 	"hesapkitap/internal/platform/auth"
 	"hesapkitap/internal/platform/http/views"
+	"hesapkitap/internal/report"
 	"hesapkitap/internal/trendyol"
 )
 
@@ -22,20 +23,59 @@ const dateLayout = "2006-01-02"
 
 func (s *server) invoiceList(w http.ResponseWriter, r *http.Request) {
 	q, status, page := listParams(r)
-	if status != string(invoice.StatusDraft) {
+	switch invoice.Status(status) {
+	case invoice.StatusDraft, invoice.StatusSending, invoice.StatusIssued, invoice.StatusErrored, invoice.StatusAnnulled:
+	default:
 		status = ""
 	}
-	items, total, err := s.Invoices.List(r.Context(), invoice.ListFilter{Query: q, Status: status, Limit: listPerPage, Offset: (page - 1) * listPerPage})
+	kind := r.URL.Query().Get("kind")
+	if kind != string(invoice.KindEArchive) && kind != string(invoice.KindEInvoice) {
+		kind = ""
+	}
+	items, total, err := s.Invoices.List(r.Context(), invoice.ListFilter{Query: q, Status: status, Kind: kind, Limit: listPerPage, Offset: (page - 1) * listPerPage})
 	if err != nil {
 		s.serverError(w, r, "fatura listesi okunamadı", err)
 		return
 	}
-	l := views.InvoiceList{Items: items, Query: q, Status: status, Page: page, PageCount: pageCount(total), Total: total}
+	l := views.InvoiceList{Items: items, Query: q, Status: status, Kind: kind, Page: page, PageCount: pageCount(total), Total: total}
 	if isFragment(r, "invoice-list") {
 		render(w, r, http.StatusOK, views.InvoiceListFragment(l))
 		return
 	}
+	l.Tabs = s.invoiceTabs(r, kind, status)
 	render(w, r, http.StatusOK, views.InvoicesPage(s.pageData(r, "invoices", "Faturalar"), l))
+}
+
+// invoiceTabs builds the tabs above the list with their counts. When kind and status are both set (a dashboard
+// tile) no tab matches exactly, so the kind tab is highlighted.
+func (s *server) invoiceTabs(r *http.Request, kind, status string) []views.ListTab {
+	var counts report.InvoiceCounts
+	if s.Reports != nil {
+		if c, err := s.Reports.InvoiceCounts(r.Context(), time.Now()); err == nil {
+			counts = c
+		}
+	}
+	tabs := []views.ListTab{
+		{Label: "Tümü"},
+		{Label: "Taslak", Status: string(invoice.StatusDraft)},
+		{Label: "e-Arşiv", Kind: string(invoice.KindEArchive)},
+		{Label: "e-Fatura", Kind: string(invoice.KindEInvoice)},
+		{Label: "Gönderimde", Status: string(invoice.StatusSending)},
+		{Label: "Hatalı", Status: string(invoice.StatusErrored)},
+		{Label: "İptal", Status: string(invoice.StatusAnnulled)},
+	}
+	exact := false
+	for i := range tabs {
+		tabs[i].N = counts.Count(invoice.Kind(tabs[i].Kind), invoice.Status(tabs[i].Status), false)
+		tabs[i].Active = tabs[i].Kind == kind && tabs[i].Status == status
+		exact = exact || tabs[i].Active
+	}
+	if !exact && kind != "" {
+		for i := range tabs {
+			tabs[i].Active = tabs[i].Kind == kind && tabs[i].Status == ""
+		}
+	}
+	return tabs
 }
 
 // formCatalogues loads what the draft form needs for its dropdowns.
@@ -351,7 +391,8 @@ func issueMessage(err error) string {
 	var apiErr *trendyol.APIError
 	switch {
 	case errors.Is(err, invoice.ErrNoProvider), errors.Is(err, invoice.ErrAliasNotChosen), errors.Is(err, invoice.ErrNotEArchive),
-		errors.Is(err, invoice.ErrCannotCancel), errors.Is(err, invoice.ErrNotIssued), errors.Is(err, invoice.ErrNotEditable):
+		errors.Is(err, invoice.ErrCannotCancel), errors.Is(err, invoice.ErrNotIssued), errors.Is(err, invoice.ErrNotEditable),
+		errors.Is(err, invoice.ErrCannotResend):
 		return err.Error() + "."
 	case errors.Is(err, trendyol.ErrIPNotWhitelisted), errors.Is(err, trendyol.ErrInvalidCredentials),
 		errors.Is(err, trendyol.ErrUnauthorized), errors.As(err, &apiErr):
@@ -367,7 +408,14 @@ func (s *server) invoiceView(w http.ResponseWriter, r *http.Request, d invoice.D
 		s.serverError(w, r, "fatura toplamı hesaplanamadı", err)
 		return
 	}
-	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash}
+	me, _ := auth.CurrentUser(r.Context())
+	v := views.InvoiceView{Draft: d, Totals: t, Message: message, Flash: flash, CanResend: me.Can(auth.PermInvoiceIssue)}
+	if s.Mailer != nil && me.Can(auth.PermInvoiceIssue) && (d.Status == invoice.StatusIssued || d.Status == invoice.StatusAnnulled) {
+		if c, err := s.Customers.Get(r.Context(), d.CustomerID); err == nil {
+			v.EmailTo = strings.TrimSpace(c.Email)
+			v.MailReady = true
+		}
+	}
 	if boxOnly {
 		render(w, r, http.StatusOK, views.InvoiceStatusBox(v))
 		return
@@ -466,3 +514,88 @@ func (s *server) invoiceCancel(w http.ResponseWriter, r *http.Request) {
 	s.record(r, "invoice.cancel", "invoice", id.String(), "e-Arşiv fatura iptal edildi")
 	http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
 }
+
+// invoiceReply is the HTMX fragment with the recipient's answer to a commercial e-Fatura.
+func (s *server) invoiceReply(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	reply, found, err := s.Invoices.Reply(r.Context(), id)
+	if err != nil {
+		s.Logger.WarnContext(r.Context(), "alıcı yanıtı alınamadı", "err", err, "invoice_id", id.String())
+		render(w, r, http.StatusOK, views.ReplyBox(nil, issueMessage(err)))
+		return
+	}
+	if !found {
+		render(w, r, http.StatusOK, views.ReplyBox(nil, ""))
+		return
+	}
+	render(w, r, http.StatusOK, views.ReplyBox(&reply, ""))
+}
+
+// invoiceResend sends an e-Fatura that failed at GİB again.
+func (s *server) invoiceResend(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	if err := s.Invoices.Resend(r.Context(), id); err != nil {
+		s.Logger.WarnContext(r.Context(), "fatura yeniden gönderilemedi", "err", err, "invoice_id", id.String())
+		d, gerr := s.Invoices.Get(r.Context(), id)
+		if gerr != nil {
+			s.notFound(w, r)
+			return
+		}
+		s.invoiceView(w, r, d, issueMessage(err), "", false)
+		return
+	}
+	s.record(r, "invoice.resend", "invoice", id.String(), "e-Fatura yeniden gönderildi")
+	http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
+}
+
+// invoiceEmail mails the permanent PDF link of an issued invoice to the customer's e-mail address.
+func (s *server) invoiceEmail(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	d, err := s.Invoices.Get(r.Context(), id)
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	fail := func(msg string) { s.invoiceView(w, r, d, msg, "", false) }
+	if s.Mailer == nil {
+		fail("E-posta gönderimi ayarlanmamış (SMTP_HOST ve SMTP_FROM).")
+		return
+	}
+	c, err := s.Customers.Get(r.Context(), d.CustomerID)
+	if err != nil {
+		s.serverError(w, r, "müşteri okunamadı", err)
+		return
+	}
+	if strings.TrimSpace(c.Email) == "" {
+		fail("Müşterinin e-posta adresi kayıtlı değil; müşteri kartına ekleyin.")
+		return
+	}
+	link, err := s.Invoices.DocumentURL(r.Context(), id, true)
+	if err != nil {
+		s.Logger.WarnContext(r.Context(), "e-posta için pdf bağlantısı alınamadı", "err", err)
+		fail(issueMessage(err))
+		return
+	}
+	body := "Merhaba,\n\n" + dateTextTR(d.IssueDate) + " tarihli faturanıza aşağıdaki bağlantıdan ulaşabilirsiniz:\n" + link + "\n\nİyi çalışmalar dileriz."
+	if err := s.Mailer.Send(r.Context(), c.Email, "Faturanız", body); err != nil {
+		s.Logger.WarnContext(r.Context(), "e-posta gönderilemedi", "err", err, "invoice_id", id.String())
+		fail("E-posta gönderilemedi: " + err.Error())
+		return
+	}
+	s.record(r, "invoice.email", "invoice", id.String(), "Fatura bağlantısı "+c.Email+" adresine gönderildi")
+	s.invoiceView(w, r, d, "", "E-posta gönderildi: "+c.Email, false)
+}
+
+func dateTextTR(t time.Time) string { return t.Format("02.01.2006") }

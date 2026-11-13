@@ -96,3 +96,9 @@ func (e *fakeEnqueuer) count() int {
 	defer e.mu.Unlock()
 	return len(e.ids)
 }
+
+func (f *fakeProvider) SentReply(_ context.Context, _ uuid.UUID) (invoice.Reply, bool, error) {
+	return invoice.Reply{}, false, nil
+}
+
+func (f *fakeProvider) Resend(_ context.Context, _ uuid.UUID, _ string) error { return nil }

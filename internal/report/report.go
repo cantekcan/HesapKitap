@@ -29,6 +29,30 @@ type Source interface {
 	// Sales returns the invoices counted on the account whose issue date is in [from, to], with their lines.
 	Sales(ctx context.Context, from, to time.Time) ([]invoice.Draft, error)
 	Attention(ctx context.Context) ([]Attention, error)
+	// InvoiceCounts counts invoices by kind, status and whether the issue date is in the month starting at monthStart.
+	InvoiceCounts(ctx context.Context, monthStart time.Time) (InvoiceCounts, error)
+}
+
+// CountRow is a group of invoices.
+type CountRow struct {
+	Kind      invoice.Kind // taslakta boş
+	Status    invoice.Status
+	ThisMonth bool
+	N         int
+}
+
+// InvoiceCounts answers the questions of the dashboard tiles and the list tabs.
+type InvoiceCounts struct{ Rows []CountRow }
+
+// Count sums the groups of the given kind ("" = any) and status ("" = any).
+func (c InvoiceCounts) Count(kind invoice.Kind, status invoice.Status, thisMonthOnly bool) int {
+	n := 0
+	for _, r := range c.Rows {
+		if (kind == "" || r.Kind == kind) && (status == "" || r.Status == status) && (!thisMonthOnly || r.ThisMonth) {
+			n += r.N
+		}
+	}
+	return n
 }
 
 func month(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC) }

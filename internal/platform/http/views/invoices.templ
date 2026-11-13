@@ -16,6 +16,8 @@ type InvoiceList struct {
 	Items     []invoice.Summary
 	Query     string
 	Status    string
+	Kind      string
+	Tabs      []ListTab
 	Page      int
 	PageCount int
 	Total     int
@@ -48,8 +50,36 @@ type InvoiceForm struct {
 	TotalsErr  string
 }
 
+// ListTab is one tab above the invoice list (a kind and/or status filter with its count).
+type ListTab struct {
+	Label  string
+	Kind   string
+	Status string
+	N      int
+	Active bool
+}
+
+func tabClass(active bool) string {
+	base := "flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition "
+	if active {
+		return base + "bg-brand-600 text-white shadow-sm"
+	}
+	return base + "text-slate-600 hover:bg-brand-50 hover:text-brand-700"
+}
+
+func tabCountClass(active bool) string {
+	if active {
+		return "rounded-full bg-white/20 px-2 py-0.5 text-xs tabular-nums"
+	}
+	return "rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600"
+}
+
+func tabHref(t ListTab) string {
+	return "/invoices?kind=" + t.Kind + "&status=" + t.Status
+}
+
 func invoicePageHref(l InvoiceList, page int) string {
-	return fmt.Sprintf("/invoices?q=%s&status=%s&page=%d", templURLEscape(l.Query), l.Status, page)
+	return fmt.Sprintf("/invoices?q=%s&kind=%s&status=%s&page=%d", templURLEscape(l.Query), l.Kind, l.Status, page)
 }
 
 func dateText(t time.Time) string { return t.Format("02.01.2006") }
@@ -86,19 +116,25 @@ func alpineData(f InvoiceForm) string {
 
 templ InvoicesPage(p PageData, l InvoiceList) {
 	@Layout(p) {
+		<div class="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm" role="tablist">
+			for _, t := range l.Tabs {
+				<a href={ templ.SafeURL(tabHref(t)) } role="tab" class={ tabClass(t.Active) }>
+					{ t.Label }
+					<span class={ tabCountClass(t.Active) }>{ fmt.Sprint(t.N) }</span>
+				</a>
+			}
+		</div>
 		<div class="mb-4 flex flex-wrap items-center gap-3">
 			<form
 				class="flex flex-1 flex-wrap items-center gap-2"
 				hx-get="/invoices"
 				hx-target="#invoice-list"
-				hx-trigger="input changed delay:300ms from:#q, change from:#status, submit"
+				hx-trigger="input changed delay:300ms from:#q, submit"
 				hx-push-url="true"
 			>
 				<input id="q" name="q" type="search" value={ l.Query } placeholder="Müşteri adı ara…" class="input !mt-0 sm:!w-80"/>
-				<select id="status" name="status" class="input !mt-0 sm:!w-48">
-					<option value="" selected?={ l.Status == "" }>Tüm durumlar</option>
-					<option value="DRAFT" selected?={ l.Status == "DRAFT" }>Taslak</option>
-				</select>
+				<input type="hidden" name="kind" value={ l.Kind }/>
+				<input type="hidden" name="status" value={ l.Status }/>
 			</form>
 			if p.Can("invoice.draft") {
 				<a href="/invoices/new" class={ btnPrimary }>+ Yeni fatura</a>

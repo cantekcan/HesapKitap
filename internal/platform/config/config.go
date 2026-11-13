@@ -39,6 +39,13 @@ type Config struct {
 	InvoicePrefix string
 	// Company: satıcı (firma) bilgileri; yalnızca taslak fatura PDF önizlemesinde görünür. Hepsi isteğe bağlı.
 	Company Company
+	// SMTP: müşteriye fatura bağlantısı e-postası için; Host ve From doluysa özellik açılır.
+	SMTP SMTP
+}
+
+// SMTP is the outgoing mail account.
+type SMTP struct {
+	Host, Port, User, Password, From string
 }
 
 // Company is the seller block printed on the draft invoice preview.
@@ -71,6 +78,10 @@ func Load(getenv func(string) string) (Config, error) {
 		EInvoiceEnabled:  get("EINVOICE_ENABLED", "false") == "true",
 		EInvoiceScenario: get("EINVOICE_SCENARIO", "TEMELFATURA"),
 		InvoicePrefix:    get("INVOICE_PREFIX", ""),
+		SMTP: SMTP{
+			Host: get("SMTP_HOST", ""), Port: get("SMTP_PORT", "587"), User: get("SMTP_USER", ""),
+			Password: get("SMTP_PASSWORD", ""), From: get("SMTP_FROM", ""),
+		},
 		Company: Company{
 			Name: get("COMPANY_NAME", ""), TaxID: get("COMPANY_TAX_ID", ""), TaxOffice: get("COMPANY_TAX_OFFICE", ""),
 			Address: get("COMPANY_ADDRESS", ""), City: get("COMPANY_CITY", ""), Phone: get("COMPANY_PHONE", ""), Email: get("COMPANY_EMAIL", ""),

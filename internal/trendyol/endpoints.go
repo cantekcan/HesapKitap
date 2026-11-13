@@ -136,8 +136,8 @@ func (c *Client) ResendOutgoingEInvoice(ctx context.Context, invoiceUUID, newTar
 		resendRequest{InvoiceUUID: invoiceUUID, NewTargetAlias: newTargetAlias, CompanyID: companyID}, nil)
 }
 
-// SentReply returns the recipient's answer to a commercial e-Fatura.
-func (c *Client) SentReply(ctx context.Context, invoiceUUID string) (*SentReply, error) {
+// SentReplyByUUID returns the recipient's answer to a commercial e-Fatura.
+func (c *Client) SentReplyByUUID(ctx context.Context, invoiceUUID string) (*SentReply, error) {
 	companyID, _, err := c.ids(ctx)
 	if err != nil {
 		return nil, err
