@@ -97,7 +97,7 @@ tasks:
   dev:css:
     internal: true
     cmds:
-      - '{{.TAILWIND}} -i {{.CSS_IN}} -o {{.CSS_OUT}} --watch'
+      - '{{.TAILWIND}} -i {{.CSS_IN}} -o {{.CSS_OUT}} --minify --watch'
 
   dev:air:
     internal: true
