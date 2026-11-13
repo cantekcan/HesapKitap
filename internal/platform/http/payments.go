@@ -138,6 +138,7 @@ func (s *server) paymentCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(verrs) == 0 {
+			s.record(r, "payment.create", "customer", p.CustomerID.String(), money.FormatTL(p.Amount)+" · "+p.Method.Label())
 			http.Redirect(w, r, "/customers/"+p.CustomerID.String()+"?paid=1", http.StatusSeeOther)
 			return
 		}
@@ -168,6 +169,7 @@ func (s *server) paymentDelete(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "tahsilat silinemedi", err)
 		return
 	}
+	s.record(r, "payment.delete", "payment", id.String(), "Tahsilat silindi")
 	http.Redirect(w, r, "/payments", http.StatusSeeOther)
 }
 

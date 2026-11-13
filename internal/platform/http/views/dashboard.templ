@@ -95,7 +95,7 @@ templ Dashboard(p PageData, d report.Dashboard, hasData bool) {
 				<div class="mt-1 text-xs text-slate-500">{ fmt.Sprint(d.CustomerCount) } aktif müşteri</div>
 			}
 			@kpi("Vadesi geçmiş", money.FormatTL(d.Overdue), "bg-rose-50 text-rose-600", "alert") {
-				<div class="mt-1 text-xs text-slate-500">{ fmt.Sprint(d.OverdueCount) } müşteride</div>
+				<div class="mt-1 text-xs text-slate-500">{ fmt.Sprint(d.OverdueCount) } müşteride · <a href="/reminders" class="font-medium text-brand-600 hover:underline">hatırlat</a></div>
 			}
 			@kpi("Bu ay kesilen", money.FormatTL(d.InvoicedMonth), "bg-sky-50 text-sky-600", "document") {
 				@delta(d.InvoicedMonth, d.InvoicedPrev)

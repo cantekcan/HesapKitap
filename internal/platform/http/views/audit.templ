@@ -1,0 +1,76 @@
+package views
+
+import (
+	"fmt"
+
+	"hesapkitap/internal/audit"
+)
+
+// AuditList is the data of the history page.
+type AuditList struct {
+	Items     []audit.Entry
+	Query     string
+	Page      int
+	PageCount int
+	Total     int
+}
+
+func auditHref(l AuditList, page int) string {
+	return fmt.Sprintf("/audit?q=%s&page=%d", templURLEscape(l.Query), page)
+}
+
+func auditEntityHref(e audit.Entry) string {
+	switch e.Entity {
+	case "invoice", "customer", "product":
+		if e.EntityID != "" {
+			return "/" + e.Entity + "s/" + e.EntityID
+		}
+	}
+	return ""
+}
+
+templ AuditPage(p PageData, l AuditList) {
+	@Layout(p) {
+		<form method="get" action="/audit" class="mb-4 flex gap-3">
+			<input name="q" type="search" value={ l.Query } placeholder="Kullanıcı, işlem veya açıklama ara…" class="input !mt-0 sm:!w-96"/>
+			<button type="submit" class="btn btn-secondary">Ara</button>
+		</form>
+		<div class="table-card overflow-x-auto">
+			<table class="data-table">
+				<thead><tr><th class="px-4 py-3">Zaman</th><th class="px-4 py-3">Kullanıcı</th><th class="px-4 py-3">İşlem</th><th class="px-4 py-3">Açıklama</th></tr></thead>
+				<tbody>
+					for _, e := range l.Items {
+						<tr>
+							<td class="whitespace-nowrap px-4 py-2.5 text-slate-600">{ e.At.In(istanbulLoc).Format("02.01.2006 15:04") }</td>
+							<td class="px-4 py-2.5">{ e.Actor }</td>
+							<td class="px-4 py-2.5">
+								if href := auditEntityHref(e); href != "" {
+									<a href={ templ.SafeURL(href) } class="font-medium hover:underline">{ audit.Label(e.Action) }</a>
+								} else {
+									<span class="font-medium">{ audit.Label(e.Action) }</span>
+								}
+							</td>
+							<td class="px-4 py-2.5 text-slate-600">{ e.Summary }</td>
+						</tr>
+					}
+					if len(l.Items) == 0 {
+						<tr><td colspan="4" class="px-4 py-10 text-center text-slate-500">Kayıt yok.</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if l.PageCount > 1 {
+			<div class="mt-4 flex items-center justify-between text-sm text-slate-600">
+				<span>Sayfa { fmt.Sprint(l.Page) } / { fmt.Sprint(l.PageCount) } · { fmt.Sprint(l.Total) } kayıt</span>
+				<div class="flex gap-2">
+					if l.Page > 1 {
+						<a href={ templ.SafeURL(auditHref(l, l.Page-1)) } class="btn btn-secondary">← Önceki</a>
+					}
+					if l.Page < l.PageCount {
+						<a href={ templ.SafeURL(auditHref(l, l.Page+1)) } class="btn btn-secondary">Sonraki →</a>
+					}
+				</div>
+			</div>
+		}
+	}
+}

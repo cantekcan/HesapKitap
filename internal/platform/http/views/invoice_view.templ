@@ -135,7 +135,8 @@ templ ShareLink(link, errMsg string) {
 			<input readonly value={ link } class="w-full max-w-xl rounded-lg border border-slate-300 px-2 py-1.5 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-xs" @focus="$el.select()"/>
 			<button type="button" class={ btnSecondary } @click="navigator.clipboard.writeText(l); copied = true">Kopyala</button>
 			<a href={ templ.SafeURL("https://wa.me/?text=" + templURLEscape(link)) } target="_blank" rel="noopener" class={ btnSecondary }>WhatsApp</a>
-			<span x-show="copied" x-cloak class="text-green-700">Kopyalandı</span>
+			<a href={ templ.SafeURL("mailto:?subject=" + templURLEscape("Faturanız") + "&body=" + templURLEscape("Faturanıza şu bağlantıdan ulaşabilirsiniz: "+link)) } class={ btnSecondary }>E-posta</a>
+			<span x-show="copied" x-cloak class="text-emerald-700">Kopyalandı</span>
 		</div>
 	}
 }

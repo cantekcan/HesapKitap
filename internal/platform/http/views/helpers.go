@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"strings"
+	"time"
 
 	"hesapkitap/internal/customer"
 )
@@ -25,3 +26,11 @@ func hasFieldErrors(f InvoiceForm) bool {
 }
 
 func importColumnsText() string { return strings.Join(customer.ImportColumns, ", ") }
+
+var istanbulLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Istanbul")
+	if err != nil {
+		return time.FixedZone("TRT", 3*3600)
+	}
+	return loc
+}()

@@ -131,6 +131,7 @@ func (s *server) customerCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(verrs) == 0 {
+			s.record(r, "customer.create", "customer", created.ID.String(), created.Name)
 			http.Redirect(w, r, "/customers/"+created.ID.String()+"?saved=1", http.StatusSeeOther)
 			return
 		}
@@ -165,6 +166,7 @@ func (s *server) customerUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(verrs) == 0 {
+			s.record(r, "customer.update", "customer", id.String(), c.Name)
 			http.Redirect(w, r, "/customers/"+id.String()+"?saved=1", http.StatusSeeOther) //nolint:gosec // id uuid olarak ayrıştırıldı
 			return
 		}

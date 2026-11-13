@@ -9,6 +9,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuditLog struct {
+	ID       int64
+	At       pgtype.Timestamptz
+	Actor    string
+	Action   string
+	Entity   string
+	EntityID string
+	Summary  string
+}
+
 type Customer struct {
 	ID                uuid.UUID
 	Kind              string

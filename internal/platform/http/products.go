@@ -102,6 +102,7 @@ func (s *server) productCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(verrs) == 0 {
+			s.record(r, "product.create", "product", created.ID.String(), created.Name)
 			http.Redirect(w, r, "/products/"+created.ID.String()+"?saved=1", http.StatusSeeOther) //nolint:gosec // id veritabanından geldi
 			return
 		}

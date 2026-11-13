@@ -85,6 +85,7 @@ func (s *server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Logger.InfoContext(r.Context(), "kullanıcı giriş yaptı", "user_id", u.ID.String())
+	s.recordAs(r, u.Email, "login", "", "", "")
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 

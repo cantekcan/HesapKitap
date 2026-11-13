@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"hesapkitap/internal/audit"
 	"hesapkitap/internal/customer"
 	"hesapkitap/internal/invoice"
 	"hesapkitap/internal/ledger"
@@ -43,6 +44,7 @@ type Deps struct {
 	Payments  *payment.Service
 	Ledger    ledger.Source
 	Reports   report.Source
+	Audit     audit.Store
 }
 
 type server struct {
@@ -83,6 +85,8 @@ func New(d Deps) (http.Handler, error) {
 	route(app, "POST /logout", s.requireAuth(http.HandlerFunc(s.logout)))
 	authed := func(h http.HandlerFunc) http.Handler { return s.requireAuth(h) }
 	route(app, "GET /{$}", authed(s.dashboard))
+	route(app, "GET /audit", authed(s.auditList))
+	route(app, "GET /reminders", authed(s.reminders))
 	route(app, "GET /reports", authed(s.reportsHub))
 	route(app, "GET /reports/sales", authed(s.reportSales))
 	route(app, "GET /reports/sales.xlsx", authed(s.salesXLSX))

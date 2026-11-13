@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/xuri/excelize/v2"
 
@@ -61,5 +62,12 @@ func (s *server) customerImport(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, "müşteri içe aktarma yarıda kaldı", err)
 		return
 	}
+	created := 0
+	for _, res := range results {
+		if res.Created {
+			created++
+		}
+	}
+	s.record(r, "customer.import", "", "", strconv.Itoa(created)+" müşteri Excel'den eklendi")
 	render(w, r, http.StatusOK, views.CustomerImportPage(s.pageData(r, "customers", "Müşteri içe aktar"), views.ImportPage{Results: results, Done: true}))
 }

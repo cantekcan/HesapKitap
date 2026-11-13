@@ -109,3 +109,26 @@ func TestCustomerImportFromExcel(t *testing.T) {
 	assert.Contains(t, a.get("/customers").Body, "İçe Aktarılan Ltd.")
 	assert.Equal(t, http.StatusOK, a.get("/customers/import-template.xlsx").Status)
 }
+
+func TestAuditAndReminders(t *testing.T) {
+	a := newTestApp(t)
+	require.Equal(t, http.StatusSeeOther, a.login(testPassword).Status)
+
+	cust := newCustomer("10000000146", "Ali Veli")
+	cust.Set("phone", "05321112233")
+	custID := idFrom(t, a.do(http.MethodPost, "/customers", cust, nil)) // açılış bakiyesi 1.250,50 → vadesi geçmiş sayılır
+	a.do(http.MethodPost, "/payments", url.Values{"customer_id": {custID}, "paid_at": {"2026-01-05"}, "amount": {"50,50"}, "method": {"CASH"}}, nil)
+
+	rem := a.get("/reminders")
+	assert.Equal(t, http.StatusOK, rem.Status)
+	assert.Contains(t, rem.Body, "Ali Veli")
+	assert.Contains(t, rem.Body, "1.200,00")
+	assert.Contains(t, rem.Body, "https://wa.me/905321112233")
+
+	log := a.get("/audit")
+	assert.Equal(t, http.StatusOK, log.Status)
+	assert.Contains(t, log.Body, "Giriş yapıldı")
+	assert.Contains(t, log.Body, "Müşteri eklendi")
+	assert.Contains(t, log.Body, "Tahsilat girildi")
+	assert.Contains(t, a.get("/audit?q=zzz-yok").Body, "Kayıt yok")
+}

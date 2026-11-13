@@ -256,6 +256,7 @@ func (s *server) invoiceSave(w http.ResponseWriter, r *http.Request) {
 		case len(verrs) > 0:
 			errs = verrs
 		default:
+			s.record(r, "invoice.save", "invoice", savedID.String(), "Taslak kaydedildi")
 			http.Redirect(w, r, "/invoices/"+savedID.String()+"?saved=1", http.StatusSeeOther) //nolint:gosec // id uuid
 			return
 		}
@@ -305,6 +306,7 @@ func (s *server) invoiceDelete(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.serverError(w, r, "taslak silinemedi", err)
 	default:
+		s.record(r, "invoice.delete", "invoice", id.String(), "Taslak silindi")
 		http.Redirect(w, r, "/invoices", http.StatusSeeOther)
 	}
 }
@@ -359,6 +361,7 @@ func (s *server) invoiceIssue(w http.ResponseWriter, r *http.Request) {
 		s.invoiceShowWithIssueError(w, r, id, msg)
 		return
 	}
+	s.record(r, "invoice.issue", "invoice", id.String(), "Fatura kesme işlemi başlatıldı")
 	http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
 }
 
@@ -425,5 +428,6 @@ func (s *server) invoiceCancel(w http.ResponseWriter, r *http.Request) {
 		s.invoiceView(w, r, d, issueMessage(err), "", false)
 		return
 	}
+	s.record(r, "invoice.cancel", "invoice", id.String(), "e-Arşiv fatura iptal edildi")
 	http.Redirect(w, r, "/invoices/"+id.String(), http.StatusSeeOther) //nolint:gosec // id uuid
 }
