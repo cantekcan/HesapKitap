@@ -34,3 +34,4 @@ tmp/
 *.md
 docs/
 .claude/
+!README.md
