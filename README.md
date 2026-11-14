@@ -1,5 +1,3 @@
-
-https://github.com/user-attachments/assets/e4a7849d-6250-4201-8aad-92442db47cf8
 # Hesap Kitap
 
 Küçük işletmeler için fatura ve cari takip uygulaması. Trendyol E-Faturam ile e-Arşiv / e-Fatura keser; kimin ne kadar borcu olduğunu, çek ve senetleri, tedarikçi borçlarını tek yerden gösterir. Arayüz Türkçedir.
