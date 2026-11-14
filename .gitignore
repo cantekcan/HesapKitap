@@ -29,3 +29,8 @@ Thumbs.db
 # Araçlar / derleme çıktıları
 tools/bin/
 tmp/
+
+# Yerel notlar ve proje talimatları: repoya gönderilmez
+*.md
+docs/
+.claude/
