@@ -28,7 +28,7 @@ unset PASS
 
 TOKEN=$(tr -d '\r' < "$hdr" | awk -F': ' 'tolower($1)=="x-access-token"{print $2}')
 echo "Header adları: $(tr -d '\r' < "$hdr" | awk -F': ' 'NR>1 && $1!=""{printf "%s ", tolower($1)}')"
-if [ -z "$TOKEN" ]; then
+if [[ -z "$TOKEN" ]]; then
   echo "x-access-token header'ı YOK  (403 → IP sorunu, 401 → şifre/e-posta sorunu)"
   exit 1
 fi
@@ -41,9 +41,9 @@ printf '%s' "$payload" | base64 -d 2>/dev/null | grep -o '"[^"]*"[[:space:]]*:' 
 echo
 exp=$(printf '%s' "$payload" | base64 -d 2>/dev/null | grep -o '"exp"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$')
 iat=$(printf '%s' "$payload" | base64 -d 2>/dev/null | grep -o '"iat"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$')
-[ -n "$exp" ] && [ -n "$iat" ] && echo "Token ömrü: $(( (exp - iat) / 60 )) dakika"
+[[ -n "$exp" ]] && [[ -n "$iat" ]] && echo "Token ömrü: $(( (exp - iat) / 60 )) dakika"
 
-if [ -n "$TAXID" ]; then
+if [[ -n "$TAXID" ]]; then
   echo; echo "== 3) GET /api/invoice/taxpayers/$TAXID"
   curl -4 -s --max-time 20 -w "\nHTTP %{http_code}\n" \
     "$BASE/api/invoice/taxpayers/$TAXID" -H "x-access-token: $TOKEN" | head -c 1500

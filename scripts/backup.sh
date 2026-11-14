@@ -17,14 +17,14 @@ file="$BACKUP_DIR/hesapkitap-$(date +%Y%m%d-%H%M%S).sql.gz"
 "${COMPOSE[@]}" exec -T db pg_dump -U hesapkitap -d hesapkitap --no-owner | gzip -9 > "$file"
 
 # Boş/bozuk yedeği kabul etme
-if [ "$(gzip -dc "$file" | head -c 100 | wc -c)" -lt 50 ]; then
+if [[ "$(gzip -dc "$file" | head -c 100 | wc -c)" -lt 50 ]]; then
   echo "HATA: yedek boş görünüyor: $file" >&2
   rm -f "$file"
   exit 1
 fi
 echo "Yedek alındı: $file ($(du -h "$file" | cut -f1))"
 
-if [ -n "${OFFSITE_CMD:-}" ]; then
+if [[ -n "${OFFSITE_CMD:-}" ]]; then
   bash -c "$OFFSITE_CMD" _ "$file"
   echo "Sunucu dışına gönderildi."
 else

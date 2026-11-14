@@ -5,7 +5,7 @@ alter table users
     add column active      boolean not null default true,
     add column permissions text[] not null default '{}';
 -- Bu migration'dan önce var olan kullanıcılar sistemi kuranlardır: yönetici olurlar.
-update users set is_admin = true;
+update users set is_admin = true where true;
 
 -- +goose Down
 alter table users drop column permissions, drop column active, drop column is_admin;
