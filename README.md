@@ -2,6 +2,10 @@
 
 Küçük işletmeler için fatura ve cari takip uygulaması. Trendyol E-Faturam ile e-Arşiv / e-Fatura keser; kimin ne kadar borcu olduğunu, çek ve senetleri, tedarikçi borçlarını tek yerden gösterir. Arayüz Türkçedir.
 
+
+Uploading HesapKitap (1).mp4…
+
+
 ## Özellikler
 
 - Müşteri (cari) ve ürün kaydı, fatura taslağı ve gönderimi, gelen e-Faturalar
